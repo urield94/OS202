@@ -235,7 +235,7 @@ exit(int status)
     panic("init exiting");
 
   curproc->exit_status = status;
-  
+
   // Close all open files.
   for(fd = 0; fd < NOFILE; fd++){
     if(curproc->ofile[fd]){
@@ -272,7 +272,7 @@ exit(int status)
 // Wait for a child process to exit and return its pid.
 // Return -1 if this process has no children.
 int
-wait(void)
+wait(int *status)
 {
   struct proc *p;
   int havekids, pid;
@@ -288,6 +288,8 @@ wait(void)
       havekids = 1;
       if(p->state == ZOMBIE){
         // Found one.
+        if (status != null)
+          *status = p->exit_status;
         pid = p->pid;
         kfree(p->kstack);
         p->kstack = 0;
