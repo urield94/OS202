@@ -16,5 +16,5 @@ int main(void)
   free(ptr);
   printf(1,"The process is using: %d\n", memsize());
   
-  exit();
+  exit(0);
 }
