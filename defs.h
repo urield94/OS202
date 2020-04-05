@@ -126,7 +126,9 @@ void            yield(void);
 int             set_ps_priority(int np); // TASK-4.2
 int             policy(int st); // TASK-4.4
 void            update_statistics(); // TASK-4.5
-int             proc_info(struct perf *proformance); // TASK-4.5
+int             proc_info(void); // TASK-4.5
+struct pref*    get_prefomance(void); // TASK-4.5
+int             set_cfs_priority(int); //TASK-4.3
 
 // swtch.S
 void            swtch(struct context**, struct context*);

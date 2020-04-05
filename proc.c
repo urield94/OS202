@@ -114,10 +114,18 @@ found:
     p->accumulator = get_min_acc(min_acc_props);
     /**********************************/
   }
-      p->ps_priority = 5; /*The priority of a new processis 5*/
-      p->stime = 0; 
-      p->rtime= 0; 
-      p->retime = 0; 
+  p->ps_priority = 5; /*The priority of a new processis 5*/
+
+  /**********Task-4.3****************/
+  if(sched_type == 2){
+    p->cfs_priority = 2;
+    p->decay_factor = 1;
+  }
+  /**********************************/
+
+  p->stime = 0; 
+  p->rtime= 0; 
+  p->retime = 0; 
 
   p->state = EMBRYO;
   p->pid = nextpid++;
@@ -250,6 +258,11 @@ int fork(void)
 
   acquire(&ptable.lock);
 
+  /************Task 4.3*************/
+  np-> cfs_priority = curproc->cfs_priority;
+  np-> decay_factor = curproc->decay_factor;
+  /********************************/
+
   np->state = RUNNABLE;
 
   release(&ptable.lock);
@@ -372,6 +385,9 @@ void scheduler(void)
   struct proc *p = null;
   struct cpu *c = mycpu();
   c->proc = 0;
+  struct proc *best = null;
+  double min_process_ratio = __DBL_MAX__;
+  double cur_process_ratio;
 
   for (;;)
   {
@@ -428,15 +444,33 @@ void scheduler(void)
         // p->accumulator += (p->ps_priority);
       }
     }
+    /**************************Task-4.3*****************************************************
+                                CFS_PRIORITY*/
     else if (sched_type == 2)
     {
-      // Not implemented yet
+      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+        if (p -> state != RUNNABLE){
+          continue;
+        }
+        else{
+          if((p -> rtime + p -> retime + p-> stime) > 0){
+            cur_process_ratio = ((p -> rtime) * (p -> decay_factor)) / (p -> rtime + p -> retime + p -> stime);
+            if (cur_process_ratio < min_process_ratio){
+              min_process_ratio = cur_process_ratio;
+              best = p;
+            }
+          }
+        }
+      }
+      c->proc = best;
+      switchuvm(best);
+      best->state = RUNNING;
+      swtch(&(c->scheduler), best->context);
+      switchkvm();
+      c-> proc = 0;
       policy(0);
     }
-    else
-    {
-      policy(0);
-    }
+    
     release(&ptable.lock);
   }
 }
@@ -668,6 +702,16 @@ int set_ps_priority(int np)
   return 0;
 }
 
+/*Task-4.3*/
+int set_cfs_priority(int np)
+{
+  if (np < 1|| np > 3)
+    return -1;
+  myproc()->cfs_priority = np;
+  myproc()->decay_factor = 0.5 + (0.25 * np);
+  return 0;
+}
+
 static struct min_acc_properties get_min_acc_prop()
 {
   struct proc *p;
@@ -763,6 +807,7 @@ static void set_woken_acc(long long glob_min_acc, int num_of_runnable, int run_o
 /*Task-4.4*/
 int policy(int st)
 {
+  cprintf("sched_type: %d\n", st);
   if (st == 0 || st == 1 || st == 2)
   {
     sched_type = st;
@@ -793,14 +838,18 @@ void update_statistics()
   }
 }
 
-int proc_info(struct perf *proformance){
+struct pref *get_prefomance(){
+  return (struct pref*)myproc()->ps_priority;
+}
+
+int proc_info(){
   struct proc* p = myproc();
   cprintf("%d\t%d\t\t%d\t%d\t%d\n", 
           p->pid,
-          proformance->ps_priority,
-          proformance->stime,
-          proformance->retime,
-          proformance->rtime);
+          p->ps_priority,
+          p->stime,
+          p->retime,
+          p->rtime);
   return 0;
 }
 /**/

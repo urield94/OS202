@@ -113,6 +113,20 @@ sys_set_ps_priority(void)
   return set_ps_priority(ps_priority); 
 }
 
+//return cfs_priority to current process
+int
+sys_set_cfs_priority(void){
+  int priority;
+  if(argint (0, &priority)<0){
+    return -1;
+  }
+  if((priority < 1) || (priority > 3)){
+    return -1;
+  }
+  myproc()-> cfs_priority = priority;
+  return 0;
+
+}
 // set the scheduling policy
 int
 sys_policy(void)
@@ -127,15 +141,5 @@ sys_policy(void)
 int
 sys_proc_info(void)
 {
-  struct perf *proformance;
-  if(argptr(1, (void*)&proformance, sizeof(*proformance)) < 0)
-    return -1;
-
-  struct proc* p = myproc();
-  proformance->ps_priority = p->ps_priority;
-  proformance->stime = p->stime;
-  proformance->retime = p->retime;
-  proformance->rtime = p->rtime;
-
-  return proc_info(proformance); 
+  return proc_info(); 
 }

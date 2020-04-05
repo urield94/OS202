@@ -52,9 +52,11 @@ struct proc {
   int exit_status;             // Process exit status
   long long accumulator;
   int ps_priority;
-  int stime;
-  int retime;
-  int rtime;
+  int cfs_priority;            
+  int decay_factor;                   // Decay factor for process
+  int stime;                   // Time process was sleeping
+  int retime;                  // Time process was ready/runnable
+  int rtime;                   // Time process was running
 };
 
 // Process memory is laid out contiguously, low addresses first:
@@ -62,3 +64,11 @@ struct proc {
 //   original data and bss
 //   fixed-size stack
 //   expandable heap
+
+struct perf
+{
+    int ps_priority;
+    int stime;
+    int retime;
+    int rtime;
+};
