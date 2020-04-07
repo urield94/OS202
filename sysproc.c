@@ -96,3 +96,10 @@ sys_memsize(void)
 {
   return myproc()->sz;
 }
+
+// return size of current process
+int
+sys_set_ps_priority(void)
+{
+   return set_ps_priority(myproc()->ps_priority); // TODO - Chgane?
+}
