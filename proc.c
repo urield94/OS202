@@ -6,6 +6,7 @@
 #include "x86.h"
 #include "proc.h"
 #include "spinlock.h"
+#include <limits.h>
 
 struct {
   struct spinlock lock;
@@ -19,6 +20,14 @@ extern void forkret(void);
 extern void trapret(void);
 
 static void wakeup1(void *chan);
+
+union min_acc_properties {
+  struct proc *min_acc_proc;
+  long long min_acc;
+  int there_is_no_runnbale;
+};
+static union min_acc_properties* get_min_acc_prop();
+static int get_min_acc(union min_acc_properties* min_acc_prop);
 
 void
 pinit(void)
@@ -78,6 +87,12 @@ allocproc(void)
 
   acquire(&ptable.lock);
 
+  /****************************************Task-4.2***************************************************
+    Each time a new process is created the system should set the value of its accumulator field 
+    to the minimum value of the accumulator fields of all the runnable/running processes.*/
+  union min_acc_properties* min_acc_props = get_min_acc_prop();
+  /****************************************************************************************************/
+
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     if(p->state == UNUSED)
       goto found;
@@ -86,6 +101,9 @@ allocproc(void)
   return 0;
 
 found:
+/**********Task-4.2****************/
+  p->accumulator = get_min_acc(min_acc_props);
+/**********************************/
   p->state = EMBRYO;
   p->pid = nextpid++;
 
@@ -211,6 +229,10 @@ fork(void)
   safestrcpy(np->name, curproc->name, sizeof(curproc->name));
 
   pid = np->pid;
+  /************************Task-4.2************************
+            The priority of a new processis 5*/
+  np->ps_priority = 5; 
+  /*********************************************************/
 
   acquire(&ptable.lock);
 
@@ -326,7 +348,8 @@ wait(int *status)
 void
 scheduler(void)
 {
-  struct proc *p;
+  struct proc *p = null;
+  struct proc *iter_proc;
   struct cpu *c = mycpu();
   c->proc = 0;
   
@@ -336,10 +359,22 @@ scheduler(void)
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
-        continue;
 
+  /*******************************Task-4.2*****************************************
+  Whenever the scheduler needs to select the next process to execute, it
+  will choose the process with the lowest accumulated number*/
+  union min_acc_properties* min_acc_props = get_min_acc_prop();
+  p = min_acc_props->min_acc_proc;
+  free(min_acc_props);
+  /*******************************************************************************/
+
+  /*******************************Task-4.1*****************************************
+                                 Round-Robin
+    // for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    //   if(p->state != RUNNABLE)
+    //     continue;
+  *********************************************************************************/
+    if(p != null){
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
@@ -353,6 +388,12 @@ scheduler(void)
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       c->proc = 0;
+
+    /*******************************Task-4.2****************************************
+      Each time a process finishes its time quantum (that is, each time it exhausts it and remains
+      runnable), the system should add the process’ priority to its accumulator field in the PCB*/
+      p->accumulator += (p->ps_priority);
+    /*******************************************************************************/
     }
     release(&ptable.lock);
 
@@ -463,9 +504,21 @@ wakeup1(void *chan)
 {
   struct proc *p;
 
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-    if(p->state == SLEEPING && p->chan == chan)
+  /****************************************Task-4.2***************************************************
+    Each time a process shifts from the blocked state to the runnable, state the system should set 
+    the value of its accumulator field to the minimum value of the accumulator fields of all the runnable/running processes.*/
+  union min_acc_properties* min_acc_props = get_min_acc_prop();
+
+  /******************************************************************************************************/
+
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->state == SLEEPING && p->chan == chan){
+      /**********Task-4.2****************/
+      p->accumulator = get_min_acc(min_acc_props);
+      /**********************************/
       p->state = RUNNABLE;
+    }
+  }
 }
 
 // Wake up all processes sleeping on chan.
@@ -486,12 +539,23 @@ kill(int pid)
   struct proc *p;
 
   acquire(&ptable.lock);
+
+  /****************************************Task-4.2***************************************************
+    Each time a process shifts from the blocked state to the runnable, state the system should set 
+    the value of its accumulator field to the minimum value of the accumulator fields of all the runnable/running processes.*/
+  union min_acc_properties* min_acc_props = get_min_acc_prop();
+  /******************************************************************************************************/
+
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->pid == pid){
       p->killed = 1;
       // Wake process from sleep if necessary.
-      if(p->state == SLEEPING)
+      if(p->state == SLEEPING){
+      /**********Task-4.2****************/
+      p->accumulator = get_min_acc(min_acc_props);
+      /**********************************/
         p->state = RUNNABLE;
+      }
       release(&ptable.lock);
       return 0;
     }
@@ -535,4 +599,40 @@ procdump(void)
     }
     cprintf("\n");
   }
+}
+
+int set_ps_priority(int np)
+{
+  if(np < 1 || np > 10)
+    panic("Priority must be between 1 to 10!");
+  myproc()->ps_priority = np;
+  return myproc()->ps_priority;
+}
+
+static union min_acc_properties* get_min_acc_prop(){
+  struct proc *min_acc_proc = null;
+  struct proc *p;
+
+  long long min_acc =  LLONG_MAX;
+  int there_is_no_runnbale = 1;
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if((p->state == RUNNABLE | p->state == RUNNING) && (p->accumulator < min_acc)){
+      if(p->state == RUNNABLE)
+        min_acc_proc = p; 
+      min_acc = p->accumulator;
+      there_is_no_runnbale = 0;
+    }
+  }
+ union min_acc_properties* res = {min_acc_proc, min_acc, there_is_no_runnbale};
+ return res;
+}
+
+static int get_min_acc(union min_acc_properties* min_acc_prop){
+  int accumulator;
+  if(min_acc_prop->there_is_no_runnbale)
+    accumulator = 0;
+  else
+    accumulator = min_acc_prop->min_acc;  
+  free(min_acc_prop);
+  return accumulator;
 }
