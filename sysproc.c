@@ -16,14 +16,20 @@ sys_fork(void)
 int
 sys_exit(void)
 {
-  exit(0);
+  int exit_status;
+  if(argint(0, &exit_status) < 0)
+    exit(1);
+  exit(exit_status);
   return 0;  // not reached
 }
 
 int
 sys_wait(void)
 {
-  return wait(&myproc()->exit_status);
+  int *exit_status;
+  if(argptr(1, (void*)&exit_status, sizeof(*exit_status)) < 0)
+    return -1;
+  return wait(exit_status);
 }
 
 int
@@ -101,5 +107,18 @@ sys_memsize(void)
 int
 sys_set_ps_priority(void)
 {
-   return set_ps_priority(myproc()->ps_priority); // TODO - Chgane?
+  int ps_priority;
+  if(argint(0, &ps_priority) < 0)
+    return -1;
+  return set_ps_priority(ps_priority); 
+}
+
+// set the scheduling policy
+int
+sys_policy(void)
+{
+  int policy_num;
+  if(argint(0, &policy_num) < 0)
+    return -1;
+  return policy(policy_num); 
 }

@@ -174,6 +174,8 @@ main(void)
     if(fork1() == 0)
       runcmd(parsecmd(buf));
     wait(status);
+        printf(1, "before");
+
   }
   exit(0);
 }

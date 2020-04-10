@@ -104,7 +104,7 @@ int             pipewrite(struct pipe*, char*, int);
 //PAGEBREAK: 16
 // proc.c
 int             cpuid(void);
-void            exit(int status);
+void            exit(int);
 int             fork(void);
 int             growproc(int);
 int             kill(int);
@@ -121,6 +121,7 @@ int             wait(int *status);
 void            wakeup(void*);
 void            yield(void);
 int             set_ps_priority(int np);
+int             policy(int st);
 // swtch.S
 void            swtch(struct context**, struct context*);
 
@@ -188,3 +189,5 @@ void            clearpteu(pde_t *pgdir, char *uva);
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))
+
+int sched_type;
