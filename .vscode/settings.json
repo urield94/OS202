@@ -4,6 +4,7 @@
         "stat.h": "c",
         "defs.h": "c",
         "spinlock.h": "c",
-        "date.h": "c"
+        "date.h": "c",
+        "stdlib.h": "c"
     }
 }

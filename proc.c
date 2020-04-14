@@ -8,7 +8,8 @@
 #include "spinlock.h"
 #include <limits.h>
 
-struct {
+struct
+{
   struct spinlock lock;
   struct proc proc[NPROC];
 } ptable;
@@ -21,40 +22,42 @@ extern void trapret(void);
 
 static void wakeup1(void *chan);
 
-union min_acc_properties {
-  struct proc *min_acc_proc;
+struct min_acc_properties
+{
+  int min_acc_proc_index;
   long long min_acc;
   int there_is_no_runnbale;
 };
-static union min_acc_properties get_min_acc_prop();
-static int get_min_acc(union min_acc_properties min_acc_prop);
+static struct min_acc_properties get_min_acc_prop();
+static long long get_min_acc(struct min_acc_properties min_acc_prop);
+static void set_woken_acc(long long glob_min_acc, int num_of_runnable, int run_on_chan[], int there_is_no_runnbale);
 
-void
-pinit(void)
+void pinit(void)
 {
   initlock(&ptable.lock, "ptable");
 }
 
 // Must be called with interrupts disabled
-int
-cpuid() {
-  return mycpu()-cpus;
+int cpuid()
+{
+  return mycpu() - cpus;
 }
 
 // Must be called with interrupts disabled to avoid the caller being
 // rescheduled between reading lapicid and running through the loop.
-struct cpu*
+struct cpu *
 mycpu(void)
 {
   int apicid, i;
-  
-  if(readeflags()&FL_IF)
+
+  if (readeflags() & FL_IF)
     panic("mycpu called with interrupts enabled\n");
-  
+
   apicid = lapicid();
   // APIC IDs are not guaranteed to be contiguous. Maybe we should have
   // a reverse map, or reserve a register to store &cpus[i].
-  for (i = 0; i < ncpu; ++i) {
+  for (i = 0; i < ncpu; ++i)
+  {
     if (cpus[i].apicid == apicid)
       return &cpus[i];
   }
@@ -63,8 +66,9 @@ mycpu(void)
 
 // Disable interrupts so that we are not rescheduled
 // while reading proc from the cpu structure
-struct proc*
-myproc(void) {
+struct proc *
+myproc(void)
+{
   struct cpu *c;
   struct proc *p;
   pushcli();
@@ -79,7 +83,7 @@ myproc(void) {
 // If found, change state to EMBRYO and initialize
 // state required to run in the kernel.
 // Otherwise return 0.
-static struct proc*
+static struct proc *
 allocproc(void)
 {
   struct proc *p;
@@ -90,30 +94,34 @@ allocproc(void)
   /****************************************Task-4.2***************************************************
     Each time a new process is created the system should set the value of its accumulator field 
     to the minimum value of the accumulator fields of all the runnable/running processes.*/
-  union min_acc_properties min_acc_props;
-  if(sched_type == 1)
-     min_acc_props = get_min_acc_prop();
+  struct min_acc_properties min_acc_props;
+  if (sched_type == 1)
+    min_acc_props = get_min_acc_prop();
   /****************************************************************************************************/
 
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-    if(p->state == UNUSED)
+  for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+    if (p->state == UNUSED)
       goto found;
 
   release(&ptable.lock);
   return 0;
 
 found:
-/**********Task-4.2****************/
-if(sched_type == 1)
-  p->accumulator = get_min_acc(min_acc_props);
-/**********************************/
+  /**********Task-4.2****************/
+  if (sched_type == 1)
+  {
+    p->accumulator = get_min_acc(min_acc_props);
+    p->ps_priority = 5; /*The priority of a new processis 5*/
+    /**********************************/
+  }
   p->state = EMBRYO;
   p->pid = nextpid++;
 
   release(&ptable.lock);
 
   // Allocate kernel stack.
-  if((p->kstack = kalloc()) == 0){
+  if ((p->kstack = kalloc()) == 0)
+  {
     p->state = UNUSED;
     return 0;
   }
@@ -121,15 +129,15 @@ if(sched_type == 1)
 
   // Leave room for trap frame.
   sp -= sizeof *p->tf;
-  p->tf = (struct trapframe*)sp;
+  p->tf = (struct trapframe *)sp;
 
   // Set up new context to start executing at forkret,
   // which returns to trapret.
   sp -= 4;
-  *(uint*)sp = (uint)trapret;
+  *(uint *)sp = (uint)trapret;
 
   sp -= sizeof *p->context;
-  p->context = (struct context*)sp;
+  p->context = (struct context *)sp;
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
 
@@ -138,16 +146,15 @@ if(sched_type == 1)
 
 //PAGEBREAK: 32
 // Set up first user process.
-void
-userinit(void)
+void userinit(void)
 {
   struct proc *p;
   extern char _binary_initcode_start[], _binary_initcode_size[];
 
   p = allocproc();
-  
+
   initproc = p;
-  if((p->pgdir = setupkvm()) == 0)
+  if ((p->pgdir = setupkvm()) == 0)
     panic("userinit: out of memory?");
   inituvm(p->pgdir, _binary_initcode_start, (int)_binary_initcode_size);
   p->sz = PGSIZE;
@@ -158,7 +165,7 @@ userinit(void)
   p->tf->ss = p->tf->ds;
   p->tf->eflags = FL_IF;
   p->tf->esp = PGSIZE;
-  p->tf->eip = 0;  // beginning of initcode.S
+  p->tf->eip = 0; // beginning of initcode.S
 
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
@@ -176,18 +183,20 @@ userinit(void)
 
 // Grow current process's memory by n bytes.
 // Return 0 on success, -1 on failure.
-int
-growproc(int n)
+int growproc(int n)
 {
   uint sz;
   struct proc *curproc = myproc();
 
   sz = curproc->sz;
-  if(n > 0){
-    if((sz = allocuvm(curproc->pgdir, sz, sz + n)) == 0)
+  if (n > 0)
+  {
+    if ((sz = allocuvm(curproc->pgdir, sz, sz + n)) == 0)
       return -1;
-  } else if(n < 0){
-    if((sz = deallocuvm(curproc->pgdir, sz, sz + n)) == 0)
+  }
+  else if (n < 0)
+  {
+    if ((sz = deallocuvm(curproc->pgdir, sz, sz + n)) == 0)
       return -1;
   }
   curproc->sz = sz;
@@ -198,20 +207,21 @@ growproc(int n)
 // Create a new process copying p as the parent.
 // Sets up stack to return as if from system call.
 // Caller must set state of returned proc to RUNNABLE.
-int
-fork(void)
+int fork(void)
 {
   int i, pid;
   struct proc *np;
   struct proc *curproc = myproc();
 
   // Allocate process.
-  if((np = allocproc()) == 0){
+  if ((np = allocproc()) == 0)
+  {
     return -1;
   }
 
   // Copy process state from proc.
-  if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
+  if ((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0)
+  {
     kfree(np->kstack);
     np->kstack = 0;
     np->state = UNUSED;
@@ -224,18 +234,14 @@ fork(void)
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
 
-  for(i = 0; i < NOFILE; i++)
-    if(curproc->ofile[i])
+  for (i = 0; i < NOFILE; i++)
+    if (curproc->ofile[i])
       np->ofile[i] = filedup(curproc->ofile[i]);
   np->cwd = idup(curproc->cwd);
 
   safestrcpy(np->name, curproc->name, sizeof(curproc->name));
 
   pid = np->pid;
-  /************************Task-4.2************************
-            The priority of a new processis 5*/
-  np->ps_priority = 5; 
-  /*********************************************************/
 
   acquire(&ptable.lock);
 
@@ -249,21 +255,22 @@ fork(void)
 // Exit the current process.  Does not return.
 // An exited process remains in the zombie state
 // until its parent calls wait() to find out it exited.
-void
-exit(int status)
+void exit(int status)
 {
   struct proc *curproc = myproc();
   struct proc *p;
   int fd;
 
-  if(curproc == initproc)
+  if (curproc == initproc)
     panic("init exiting");
 
   curproc->exit_status = status;
 
   // Close all open files.
-  for(fd = 0; fd < NOFILE; fd++){
-    if(curproc->ofile[fd]){
+  for (fd = 0; fd < NOFILE; fd++)
+  {
+    if (curproc->ofile[fd])
+    {
       fileclose(curproc->ofile[fd]);
       curproc->ofile[fd] = 0;
     }
@@ -280,10 +287,12 @@ exit(int status)
   wakeup1(curproc->parent);
 
   // Pass abandoned children to init.
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-    if(p->parent == curproc){
+  for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+  {
+    if (p->parent == curproc)
+    {
       p->parent = initproc;
-      if(p->state == ZOMBIE)
+      if (p->state == ZOMBIE)
         wakeup1(initproc);
     }
   }
@@ -296,24 +305,27 @@ exit(int status)
 
 // Wait for a child process to exit and return its pid.
 // Return -1 if this process has no children.
-int
-wait(int *status)
+int wait(int *status)
 {
   struct proc *p;
   int havekids, pid;
   struct proc *curproc = myproc();
-  
+
   acquire(&ptable.lock);
-  for(;;){
+  for (;;)
+  {
     // Scan through table looking for exited children.
     havekids = 0;
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->parent != curproc)
+    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+    {
+      if (p->parent != curproc)
         continue;
       havekids = 1;
-      if(p->state == ZOMBIE){
+      if (p->state == ZOMBIE)
+      {
         // Found one.
-        if (status != null){
+        if (status != null)
+        {
           *status = p->exit_status;
         }
         pid = p->pid;
@@ -331,13 +343,14 @@ wait(int *status)
     }
 
     // No point waiting if we don't have any children.
-    if(!havekids || curproc->killed){
+    if (!havekids || curproc->killed)
+    {
       release(&ptable.lock);
       return -1;
     }
 
     // Wait for children to exit.  (See wakeup1 call in proc_exit.)
-    sleep(curproc, &ptable.lock);  //DOC: wait-sleep
+    sleep(curproc, &ptable.lock); //DOC: wait-sleep
   }
 }
 
@@ -349,80 +362,76 @@ wait(int *status)
 //  - swtch to start running that process
 //  - eventually that process transfers control
 //      via swtch back to the scheduler.
-void
-scheduler(void)
+void scheduler(void)
 {
   struct proc *p = null;
   struct cpu *c = mycpu();
   c->proc = 0;
-  
-  for(;;){
+
+  for (;;)
+  {
     // Enable interrupts on this processor.
     sti();
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
 
-    if(sched_type == 1){
-        /*******************************Task-4.2*****************************************
+    if (sched_type == 1)
+    {
+      /*******************************Task-4.2*****************************************
                                    Priority Scheduling
         Whenever the scheduler needs to select the next process to execute, it
         will choose the process with the lowest accumulated number*/
-        union min_acc_properties min_acc_props = get_min_acc_prop();
-        // p = min_acc_props.min_acc_proc;
-        for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-            if(p->state != RUNNABLE || p->accumulator > min_acc_props.min_acc)
-              continue;
+      struct min_acc_properties min_acc_props = get_min_acc_prop();
+      if (min_acc_props.min_acc_proc_index != -1)
+      {
+        p = &ptable.proc[min_acc_props.min_acc_proc_index];
 
-            // Switch to chosen process.  It is the process's job
-            // to release ptable.lock and then reacquire it
-            // before jumping back to us.
-            c->proc = p;
-            switchuvm(p);
-            p->state = RUNNING;
-
-            swtch(&(c->scheduler), p->context);
-            switchkvm();
-
-            // Process is done running for now.
-            // It should have changed its p->state before coming back.
-            c->proc = 0;
-
-            p->accumulator += p->ps_priority;
-        }
-      
+        c->proc = p;
+        switchuvm(p);
+        p->state = RUNNING;
+        swtch(&(c->scheduler), p->context);
+        switchkvm();
+        c->proc = 0;
+        if (p->state != ZOMBIE)
+          p->accumulator += p->ps_priority;
+      }
     }
-    else if(sched_type == 0){
-        /*******************************Task-4.1*****************************************
+    else if (sched_type == 0)
+    {
+      /*******************************Task-4.1*****************************************
                                        Round-Robin*/
-          for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-            if(p->state != RUNNABLE)
-              continue;
+      for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+      {
+        if (p->state != RUNNABLE)
+          continue;
 
-            // Switch to chosen process.  It is the process's job
-            // to release ptable.lock and then reacquire it
-            // before jumping back to us.
-            c->proc = p;
-            switchuvm(p);
-            p->state = RUNNING;
+        // Switch to chosen process.  It is the process's job
+        // to release ptable.lock and then reacquire it
+        // before jumping back to us.
+        c->proc = p;
+        switchuvm(p);
+        p->state = RUNNING;
 
-            swtch(&(c->scheduler), p->context);
-            switchkvm();
+        swtch(&(c->scheduler), p->context);
+        switchkvm();
 
-            // Process is done running for now.
-            // It should have changed its p->state before coming back.
-            c->proc = 0;
+        // Process is done running for now.
+        // It should have changed its p->state before coming back.
+        c->proc = 0;
 
-            // p->accumulator += (p->ps_priority);
-          }
-        }
-      else if(sched_type == 2){
-        // Not implemented yet
-          policy(0);
+        // p->accumulator += (p->ps_priority);
       }
-      else{
-        policy(0);
-      }
+    }
+    else if (sched_type == 2)
+    {
+      // Not implemented yet
+      policy(0);
+    }
+    else
+    {
+      policy(0);
+    }
     release(&ptable.lock);
   }
 }
@@ -434,19 +443,18 @@ scheduler(void)
 // be proc->intena and proc->ncli, but that would
 // break in the few places where a lock is held but
 // there's no process.
-void
-sched(void)
+void sched(void)
 {
   int intena;
   struct proc *p = myproc();
 
-  if(!holding(&ptable.lock))
+  if (!holding(&ptable.lock))
     panic("sched ptable.lock");
-  if(mycpu()->ncli != 1)
+  if (mycpu()->ncli != 1)
     panic("sched locks");
-  if(p->state == RUNNING)
+  if (p->state == RUNNING)
     panic("sched running");
-  if(readeflags()&FL_IF)
+  if (readeflags() & FL_IF)
     panic("sched interruptible");
   intena = mycpu()->intena;
   swtch(&p->context, mycpu()->scheduler);
@@ -454,10 +462,9 @@ sched(void)
 }
 
 // Give up the CPU for one scheduling round.
-void
-yield(void)
+void yield(void)
 {
-  acquire(&ptable.lock);  //DOC: yieldlock
+  acquire(&ptable.lock); //DOC: yieldlock
   myproc()->state = RUNNABLE;
   sched();
   release(&ptable.lock);
@@ -465,14 +472,14 @@ yield(void)
 
 // A fork child's very first scheduling by scheduler()
 // will swtch here.  "Return" to user space.
-void
-forkret(void)
+void forkret(void)
 {
   static int first = 1;
   // Still holding ptable.lock from scheduler.
   release(&ptable.lock);
 
-  if (first) {
+  if (first)
+  {
     // Some initialization functions must be run in the context
     // of a regular process (e.g., they call sleep), and thus cannot
     // be run from main().
@@ -486,15 +493,14 @@ forkret(void)
 
 // Atomically release lock and sleep on chan.
 // Reacquires lock when awakened.
-void
-sleep(void *chan, struct spinlock *lk)
+void sleep(void *chan, struct spinlock *lk)
 {
   struct proc *p = myproc();
-  
-  if(p == 0)
+
+  if (p == 0)
     panic("sleep");
 
-  if(lk == 0)
+  if (lk == 0)
     panic("sleep without lk");
 
   // Must acquire ptable.lock in order to
@@ -503,8 +509,9 @@ sleep(void *chan, struct spinlock *lk)
   // guaranteed that we won't miss any wakeup
   // (wakeup runs with ptable.lock locked),
   // so it's okay to release lk.
-  if(lk != &ptable.lock){  //DOC: sleeplock0
-    acquire(&ptable.lock);  //DOC: sleeplock1
+  if (lk != &ptable.lock)
+  {                        //DOC: sleeplock0
+    acquire(&ptable.lock); //DOC: sleeplock1
     release(lk);
   }
   // Go to sleep.
@@ -517,7 +524,8 @@ sleep(void *chan, struct spinlock *lk)
   p->chan = 0;
 
   // Reacquire original lock.
-  if(lk != &ptable.lock){  //DOC: sleeplock2
+  if (lk != &ptable.lock)
+  { //DOC: sleeplock2
     release(&ptable.lock);
     acquire(lk);
   }
@@ -534,25 +542,36 @@ wakeup1(void *chan)
   /****************************************Task-4.2***************************************************
     Each time a process shifts from the blocked state to the runnable, state the system should set 
     the value of its accumulator field to the minimum value of the accumulator fields of all the runnable/running processes.*/
-  union min_acc_properties min_acc_props;
-  if(sched_type == 1)
-     min_acc_props = get_min_acc_prop();
+  struct min_acc_properties min_acc_props;
+  int run_on_chan[NPROC];
+  int i = 0;
+  int num_of_runnable = 0;
+  if (sched_type == 1)
+    min_acc_props = get_min_acc_prop();
   /******************************************************************************************************/
-
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-    if(p->state == SLEEPING && p->chan == chan){
+  for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+  {
+    run_on_chan[i] = 0;
+    if (p->state == SLEEPING && p->chan == chan)
+    {
       /**********Task-4.2****************/
-      if(sched_type == 1)
-        p->accumulator = get_min_acc(min_acc_props);
+      if (sched_type == 1)
+      {
+        num_of_runnable++;
+        run_on_chan[i] = 1;
+        // p->accumulator = get_min_acc(min_acc_props);
+      }
       /**********************************/
       p->state = RUNNABLE;
     }
+    i++;
   }
+  if(sched_type == 1)
+    set_woken_acc(min_acc_props.min_acc, num_of_runnable, run_on_chan, min_acc_props.there_is_no_runnbale);
 }
 
 // Wake up all processes sleeping on chan.
-void
-wakeup(void *chan)
+void wakeup(void *chan)
 {
   acquire(&ptable.lock);
   wakeup1(chan);
@@ -562,8 +581,7 @@ wakeup(void *chan)
 // Kill the process with the given pid.
 // Process won't exit until it returns
 // to user space (see trap in trap.c).
-int
-kill(int pid)
+int kill(int pid)
 {
   struct proc *p;
 
@@ -572,20 +590,23 @@ kill(int pid)
   /****************************************Task-4.2***************************************************
     Each time a process shifts from the blocked state to the runnable, state the system should set 
     the value of its accumulator field to the minimum value of the accumulator fields of all the runnable/running processes.*/
-  union min_acc_properties min_acc_props;
-  if(sched_type == 1)
-   min_acc_props = get_min_acc_prop();
+  struct min_acc_properties min_acc_props;
+  if (sched_type == 1)
+    min_acc_props = get_min_acc_prop();
   /******************************************************************************************************/
 
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-    if(p->pid == pid){
+  for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+  {
+    if (p->pid == pid)
+    {
       p->killed = 1;
       // Wake process from sleep if necessary.
-      if(p->state == SLEEPING){
-      /**********Task-4.2****************/
-      if(sched_type == 1)
-        p->accumulator = get_min_acc(min_acc_props);
-      /**********************************/
+      if (p->state == SLEEPING)
+      {
+        /**********Task-4.2****************/
+        if (sched_type == 1)
+          p->accumulator = get_min_acc(min_acc_props);
+        /**********************************/
         p->state = RUNNABLE;
       }
       release(&ptable.lock);
@@ -600,33 +621,33 @@ kill(int pid)
 // Print a process listing to console.  For debugging.
 // Runs when user types ^P on console.
 // No lock to avoid wedging a stuck machine further.
-void
-procdump(void)
+void procdump(void)
 {
   static char *states[] = {
-  [UNUSED]    "unused",
-  [EMBRYO]    "embryo",
-  [SLEEPING]  "sleep ",
-  [RUNNABLE]  "runble",
-  [RUNNING]   "run   ",
-  [ZOMBIE]    "zombie"
-  };
+      [UNUSED] "unused",
+      [EMBRYO] "embryo",
+      [SLEEPING] "sleep ",
+      [RUNNABLE] "runble",
+      [RUNNING] "run   ",
+      [ZOMBIE] "zombie"};
   int i;
   struct proc *p;
   char *state;
   uint pc[10];
 
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-    if(p->state == UNUSED)
+  for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+  {
+    if (p->state == UNUSED)
       continue;
-    if(p->state >= 0 && p->state < NELEM(states) && states[p->state])
+    if (p->state >= 0 && p->state < NELEM(states) && states[p->state])
       state = states[p->state];
     else
       state = "???";
     cprintf("%d %s %s", p->pid, state, p->name);
-    if(p->state == SLEEPING){
-      getcallerpcs((uint*)p->context->ebp+2, pc);
-      for(i=0; i<10 && pc[i] != 0; i++)
+    if (p->state == SLEEPING)
+    {
+      getcallerpcs((uint *)p->context->ebp + 2, pc);
+      for (i = 0; i < 10 && pc[i] != 0; i++)
         cprintf(" %p", pc[i]);
     }
     cprintf("\n");
@@ -636,50 +657,114 @@ procdump(void)
 /*Task-4.2*/
 int set_ps_priority(int np)
 {
-  if(np < 1 || np > 10)
-    panic("Priority must be between 1 to 10!");
+  if (np < 1 || np > 10)
+    return -1;
   myproc()->ps_priority = np;
-  return myproc()->ps_priority;
+  return 0;
 }
 
-static union min_acc_properties get_min_acc_prop(){
-  struct proc *min_acc_proc = null;
+static struct min_acc_properties get_min_acc_prop()
+{
   struct proc *p;
 
-  long long min_acc =  LLONG_MAX;
+  int min_acc_proc_index = -1;
+  int i = 0;
+  long long min_acc = LLONG_MAX;
   int there_is_no_runnbale = 1;
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-    if((p->state == RUNNABLE || p->state == RUNNING) && (p->accumulator < min_acc)){
-      if(p->state == RUNNABLE)
-        min_acc_proc = p; 
+  for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+  {
+    if ((p->state == RUNNABLE || p->state == RUNNING) && (p->accumulator < min_acc))
+    {
+      if (p->state == RUNNABLE)
+        min_acc_proc_index = i;
       min_acc = p->accumulator;
       there_is_no_runnbale = 0;
     }
+    i++;
   }
-  union min_acc_properties res;
-  res.min_acc_proc = min_acc_proc;
+  struct min_acc_properties res;
+  res.min_acc_proc_index = min_acc_proc_index;
   res.min_acc = min_acc;
   res.there_is_no_runnbale = there_is_no_runnbale;
   return res;
 }
 
-static int get_min_acc(union min_acc_properties min_acc_prop){
-  int accumulator;
-  if(min_acc_prop.there_is_no_runnbale)
+static long long get_min_acc(struct min_acc_properties min_acc_prop)
+{
+  long long accumulator;
+  if (min_acc_prop.there_is_no_runnbale)
     accumulator = 0;
   else
-    accumulator = min_acc_prop.min_acc;  
+    accumulator = min_acc_prop.min_acc;
   return accumulator;
 }
+
+/*************************************FORUM***********************************
+ * If there are no running/runnable processes at a given time and a few processes that are sleeping 
+ * on the same channel are waking up,then we need to set their new accumulators to the minimum of
+ *  the their old accumulators (prior to them sleeping)*/
+static void set_woken_acc(long long glob_min_acc, int num_of_runnable, int run_on_chan[], int there_is_no_runnbale)
+{
+  struct proc *p;
+  long long min_acc = LLONG_MAX;
+  int single_process = 0;
+  if (num_of_runnable == 0)
+    return;
+  else if (num_of_runnable == 1)
+  {
+    if (there_is_no_runnbale)
+      single_process = 1;
+  }
+
+  int i = 0;
+  for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+  {
+    if (run_on_chan[i])
+    {
+      if (single_process)
+      {
+        p->accumulator = 0;
+      }
+      else
+      {
+        if (there_is_no_runnbale)
+        {
+          if (p->accumulator < min_acc)
+            min_acc = p->accumulator;
+        }
+        else
+        {
+          p->accumulator = glob_min_acc;
+        }
+      }
+    }
+    i++;
+  }
+
+  i = 0;
+  if (!single_process && there_is_no_runnbale)
+  {
+    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+    {
+      if (run_on_chan[i])
+        p->accumulator = min_acc;
+      i++;
+    }
+  }
+}
+/******************************************************************************************************/
 /**/
 
 /*Task-4.4*/
-int policy(int st){
+int policy(int st)
+{
   cprintf("sched_type: %d\n", st);
-  if(st == 0 || st == 1 || st == 2){
+  if (st == 0 || st == 1 || st == 2)
+  {
     sched_type = st;
   }
-  else{
+  else
+  {
     sched_type = 0;
   }
   return st;
