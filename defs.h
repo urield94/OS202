@@ -10,6 +10,9 @@ struct sleeplock;
 struct stat;
 struct superblock;
 
+struct perf;
+
+
 // bio.c
 void            binit(void);
 struct buf*     bread(uint, uint);
@@ -120,8 +123,12 @@ void            userinit(void);
 int             wait(int *status);
 void            wakeup(void*);
 void            yield(void);
-int             set_ps_priority(int np);
-int             policy(int st);
+int             set_ps_priority(int np); // TASK-4.2
+int             policy(int st); // TASK-4.4
+void            update_statistics(); // TASK-4.5
+int             proc_info(void); // TASK-4.5
+struct pref*    get_prefomance(void); // TASK-4.5
+
 // swtch.S
 void            swtch(struct context**, struct context*);
 

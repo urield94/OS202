@@ -32,6 +32,7 @@ static struct min_acc_properties get_min_acc_prop();
 static long long get_min_acc(struct min_acc_properties min_acc_prop);
 static void set_woken_acc(long long glob_min_acc, int num_of_runnable, int run_on_chan[], int there_is_no_runnbale);
 
+
 void pinit(void)
 {
   initlock(&ptable.lock, "ptable");
@@ -111,9 +112,13 @@ found:
   if (sched_type == 1)
   {
     p->accumulator = get_min_acc(min_acc_props);
-    p->ps_priority = 5; /*The priority of a new processis 5*/
     /**********************************/
   }
+      p->ps_priority = 5; /*The priority of a new processis 5*/
+      p->stime = 0; 
+      p->rtime= 0; 
+      p->retime = 0; 
+
   p->state = EMBRYO;
   p->pid = nextpid++;
 
@@ -768,5 +773,39 @@ int policy(int st)
     sched_type = 0;
   }
   return st;
+}
+/**/
+
+/*Task-4.5*/
+void update_statistics()
+{
+  struct proc *p;
+  for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+  {
+    if (p->state == RUNNABLE){
+      p->retime++;
+    }
+    else if(p->state == RUNNING){
+      p->rtime++;
+    }
+    else if(p->state == SLEEPING){
+      p->stime++;
+    }
+  }
+}
+
+struct pref *get_prefomance(){
+  return (struct pref*)myproc()->ps_priority;
+}
+
+int proc_info(){
+  struct proc* p = myproc();
+  cprintf("%d\t%d\t\t%d\t%d\t%d\n", 
+          p->pid,
+          p->ps_priority,
+          p->stime,
+          p->retime,
+          p->rtime);
+  return 0;
 }
 /**/

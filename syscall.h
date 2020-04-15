@@ -23,4 +23,5 @@
 #define SYS_memsize  22
 #define SYS_set_ps_priority  23
 #define SYS_policy  24
+#define SYS_proc_info  25
 

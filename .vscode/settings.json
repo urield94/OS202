@@ -5,6 +5,11 @@
         "defs.h": "c",
         "spinlock.h": "c",
         "date.h": "c",
-        "stdlib.h": "c"
+        "stdlib.h": "c",
+        "proc.h": "c",
+        "types.h": "c",
+        "param.h": "c",
+        "memlayout.h": "c",
+        "x86.h": "c"
     }
 }

@@ -122,3 +122,10 @@ sys_policy(void)
     return -1;
   return policy(policy_num); 
 }
+
+// print proc statistics
+int
+sys_proc_info(void)
+{
+  return proc_info(); 
+}

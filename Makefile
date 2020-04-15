@@ -184,6 +184,7 @@ UPROGS=\
 	_helloworld\
 	_memsizetest\
 	_policy\
+	_sanity\
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)
@@ -256,6 +257,7 @@ EXTRA=\
 	helloworld.c\
 	memsizetest.c\
 	policy.c\
+	sanity.c\
 	printf.c umalloc.c\
 	README dot-bochsrc *.pl toc.* runoff runoff1 runoff.list\
 	.gdbinit.tmpl gdbutil\
