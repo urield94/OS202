@@ -127,5 +127,15 @@ sys_policy(void)
 int
 sys_proc_info(void)
 {
-  return proc_info(); 
+  struct perf *proformance;
+  if(argptr(1, (void*)&proformance, sizeof(*proformance)) < 0)
+    return -1;
+
+  struct proc* p = myproc();
+  proformance->ps_priority = p->ps_priority;
+  proformance->stime = p->stime;
+  proformance->retime = p->retime;
+  proformance->rtime = p->rtime;
+
+  return proc_info(proformance); 
 }

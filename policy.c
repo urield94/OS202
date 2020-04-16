@@ -10,7 +10,6 @@ main(int argc, char *argv[])
         exit(1);
     }
     int new_policy = atoi(argv[1]);
-    printf(1,"new_policy: %d\n", atoi(argv[1]));
     int success = policy(atoi(argv[1]));
     switch(success){
         case 0:

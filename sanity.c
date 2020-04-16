@@ -40,8 +40,8 @@ for (i = 0; i < number_of_childs; i++) {
         while(i--){
             dummy+=i;
         }
-       
-        proc_info(); // Each child process should then print its statistics (using system call proc_info()) before it exits
+        struct perf proformance;
+        proc_info(&proformance); // Each child process should then print its statistics (using system call proc_info()) before it exits
         exit(0);
     }
 }

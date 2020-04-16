@@ -763,7 +763,6 @@ static void set_woken_acc(long long glob_min_acc, int num_of_runnable, int run_o
 /*Task-4.4*/
 int policy(int st)
 {
-  cprintf("sched_type: %d\n", st);
   if (st == 0 || st == 1 || st == 2)
   {
     sched_type = st;
@@ -794,18 +793,14 @@ void update_statistics()
   }
 }
 
-struct pref *get_prefomance(){
-  return (struct pref*)myproc()->ps_priority;
-}
-
-int proc_info(){
+int proc_info(struct perf *proformance){
   struct proc* p = myproc();
   cprintf("%d\t%d\t\t%d\t%d\t%d\n", 
           p->pid,
-          p->ps_priority,
-          p->stime,
-          p->retime,
-          p->rtime);
+          proformance->ps_priority,
+          proformance->stime,
+          proformance->retime,
+          proformance->rtime);
   return 0;
 }
 /**/
