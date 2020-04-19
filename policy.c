@@ -10,7 +10,6 @@ main(int argc, char *argv[])
         exit(1);
     }
     int new_policy = atoi(argv[1]);
-    printf(1,"new_policy: %d\n", atoi(argv[1]));
     int success = policy(atoi(argv[1]));
     switch(success){
         case 0:
@@ -20,13 +19,11 @@ main(int argc, char *argv[])
             printf(1, "Policy has been successfully changed to Priority Policy\n");
             break;
         case 2:
-            printf(1, "Policy has been successfully changed to CFS Policy");            
-            policy(0);
+            printf(1, "Policy has been successfully changed to CFS Policy\n");            
             break;
         default:
             printf(1, "Error replacing policy, no such a policy number (%d)\n", new_policy);
             exit(1);
-
     }
     exit(0);
 }

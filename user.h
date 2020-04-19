@@ -27,8 +27,8 @@ int memsize(void);
 int set_ps_priority(int);
 int set_cfs_priority(int);
 int policy(int);
-int proc_info(void);
-
+ int proc_info(struct perf*);
+ 
 // ulib.c
 int stat(const char*, struct stat*);
 char* strcpy(char*, const char*);

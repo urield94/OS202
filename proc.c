@@ -385,9 +385,6 @@ void scheduler(void)
   struct proc *p = null;
   struct cpu *c = mycpu();
   c->proc = 0;
-  struct proc *best = null;
-  double min_process_ratio = __DBL_MAX__;
-  double cur_process_ratio;
 
   for (;;)
   {
@@ -448,6 +445,10 @@ void scheduler(void)
                                 CFS_PRIORITY*/
     else if (sched_type == 2)
     {
+      struct proc *best = null;
+      double min_process_ratio = __DBL_MAX__;
+      double cur_process_ratio;
+
       for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
         if (p -> state != RUNNABLE){
           continue;
@@ -462,13 +463,14 @@ void scheduler(void)
           }
         }
       }
-      c->proc = best;
-      switchuvm(best);
-      best->state = RUNNING;
-      swtch(&(c->scheduler), best->context);
-      switchkvm();
-      c-> proc = 0;
-      policy(0);
+      if(best != null){
+        c->proc = best;
+        switchuvm(best);
+        best->state = RUNNING;
+        swtch(&(c->scheduler), best->context);
+        switchkvm();
+        c-> proc = 0;
+      }
     }
     
     release(&ptable.lock);
@@ -807,7 +809,6 @@ static void set_woken_acc(long long glob_min_acc, int num_of_runnable, int run_o
 /*Task-4.4*/
 int policy(int st)
 {
-  cprintf("sched_type: %d\n", st);
   if (st == 0 || st == 1 || st == 2)
   {
     sched_type = st;
@@ -842,14 +843,13 @@ struct pref *get_prefomance(){
   return (struct pref*)myproc()->ps_priority;
 }
 
-int proc_info(){
-  struct proc* p = myproc();
+int proc_info(struct perf *proformance){ 
   cprintf("%d\t%d\t\t%d\t%d\t%d\n", 
-          p->pid,
-          p->ps_priority,
-          p->stime,
-          p->retime,
-          p->rtime);
+          myproc()->pid,
+          proformance->ps_priority,
+          proformance->stime,
+          proformance->retime,
+          proformance->rtime);
   return 0;
 }
 /**/
