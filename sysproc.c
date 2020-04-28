@@ -101,6 +101,7 @@ int sys_sigprocmask(void){
 }
 /**********************************************/
 
+
 /***************** TASK-2.1.4 *****************/
 /*         Registering Signal Handlers        */
 int sys_sigaction(void){
@@ -119,3 +120,13 @@ int sys_sigaction(void){
   return sigaction(signum, act, oldact);
 }
 /**********************************************/
+
+
+/***************** TASK-2.1.5******************/
+/*           The sigret system call           */
+int sys_sigret(void){
+ // Not implemented yet
+ return 0;
+}
+/**********************************************/
+

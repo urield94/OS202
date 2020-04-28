@@ -26,6 +26,7 @@ int sleep(int);
 int uptime(void);
 uint sigprocmask(uint); // Task-2.1.3
 int sigaction(int signum, const struct sigaction* act, struct sigaction* oldact); // Task-2.1.4
+void sigret(void); // Task-2.1.5
 
 // ulib.c
 int stat(const char*, struct stat*);

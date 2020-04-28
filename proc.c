@@ -594,3 +594,11 @@ int sigaction(int signum, const struct sigaction* act, struct sigaction* oldact)
 }
 /**********************************************/
 
+
+/***************** TASK-2.1.5******************/
+/*           The sigret system call           */
+void sigret(){
+ // Not implemented yet
+}
+/**********************************************/
+
