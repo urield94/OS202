@@ -10,9 +10,6 @@ struct sleeplock;
 struct stat;
 struct superblock;
 
-struct perf;
-
-
 // bio.c
 void            binit(void);
 struct buf*     bread(uint, uint);
@@ -107,7 +104,7 @@ int             pipewrite(struct pipe*, char*, int);
 //PAGEBREAK: 16
 // proc.c
 int             cpuid(void);
-void            exit(int);
+void            exit(void);
 int             fork(void);
 int             growproc(int);
 int             kill(int);
@@ -120,14 +117,9 @@ void            sched(void);
 void            setproc(struct proc*);
 void            sleep(void*, struct spinlock*);
 void            userinit(void);
-int             wait(int *status);
+int             wait(void);
 void            wakeup(void*);
 void            yield(void);
-int             set_ps_priority(int np); // TASK-4.2
-int             set_cfs_priority(int); //TASK-4.3
-int             policy(int st); // TASK-4.4
-void            update_statistics(); // TASK-4.5
-int             proc_info(struct perf *proformance); // TASK-4.5
 
 // swtch.S
 void            swtch(struct context**, struct context*);
@@ -196,5 +188,3 @@ void            clearpteu(pde_t *pgdir, char *uva);
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))
-
-int sched_type;
