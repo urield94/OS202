@@ -9,6 +9,7 @@ struct spinlock;
 struct sleeplock;
 struct stat;
 struct superblock;
+struct sigaction;
 
 // bio.c
 void            binit(void);
@@ -121,6 +122,7 @@ int             wait(void);
 void            wakeup(void*);
 void            yield(void);
 uint            sigprocmask(uint); // Task-2.1.3
+int sigaction(int signum, const struct sigaction* act, struct sigaction* oldact); // Task-2.1.4
 
 // swtch.S
 void            swtch(struct context**, struct context*);

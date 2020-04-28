@@ -21,3 +21,4 @@
 #define SYS_mkdir  20
 #define SYS_close  21
 #define SYS_sigprocmask  22 // Task-2.1.3
+#define SYS_sigaction  23 // Task-2.1.4

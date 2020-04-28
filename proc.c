@@ -573,3 +573,24 @@ uint sigprocmask(uint sigmask){
   return old_maks;
 }
 /**********************************************/
+
+
+/***************** TASK-2.1.4 *****************/
+/*         Registering Signal Handlers        */
+int sigaction(int signum, const struct sigaction* act, struct sigaction* oldact){
+  if(signum == SIGKILL || signum == SIGSTOP)
+    return -1;
+  if(act->sigmask < 0)
+    return -1;
+
+  struct proc *curproc = myproc();
+  if(oldact != 0){
+    oldact->sa_handler = curproc->signal_handlers[signum];
+    oldact->sigmask = curproc->signal_mask;
+  }
+  curproc->signal_handlers[signum] = act->sa_handler;
+  curproc->signal_mask = act->sigmask;
+  return 0;
+}
+/**********************************************/
+

@@ -100,3 +100,22 @@ int sys_sigprocmask(void){
   return sigprocmask((uint)sigmask); 
 }
 /**********************************************/
+
+/***************** TASK-2.1.4 *****************/
+/*         Registering Signal Handlers        */
+int sys_sigaction(void){
+  int signum;
+  if(argint(0, &signum) < 0)
+    return -1;
+  
+  struct sigaction* act;
+  if(argptr(1, (void*)&act, sizeof(*act)) < 0)
+    return -1;
+
+  struct sigaction* oldact;
+  if(argptr(1, (void*)&oldact, sizeof(*oldact)) < 0)
+    return -1;
+
+  return sigaction(signum, act, oldact);
+}
+/**********************************************/

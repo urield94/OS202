@@ -1,5 +1,6 @@
 struct stat;
 struct rtcdate;
+struct sigaction;
 
 // system calls
 int fork(void);
@@ -24,6 +25,7 @@ char* sbrk(int);
 int sleep(int);
 int uptime(void);
 uint sigprocmask(uint); // Task-2.1.3
+int sigaction(int signum, const struct sigaction* act, struct sigaction* oldact); // Task-2.1.4
 
 // ulib.c
 int stat(const char*, struct stat*);
