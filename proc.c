@@ -125,6 +125,13 @@ found:
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
 
+  /***************** TASK-2.1.2 *****************/ 
+  /*              Default Handlers              */
+  for(int i = 0; i < 32; i++){
+    p->signal_handlers[i] = (void*)SIG_DFL;
+  }
+  /**********************************************/
+
   return p;
 }
 
@@ -204,6 +211,14 @@ fork(void)
   if((np = allocproc()) == 0){
     return -1;
   }
+
+  /***************** TASK-2.1.2 *****************/ 
+  /*              Process creation              */
+  np->signal_mask = curproc->signal_mask;
+  for(int i = 0; i < 32; i++){
+    np->signal_handlers[i] = curproc->signal_handlers[i];
+  }
+  /**********************************************/
 
   // Copy process state from proc.
   if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
