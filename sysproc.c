@@ -89,3 +89,14 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+
+/***************** TASK-2.1.3 *****************/
+/*      Updating the process signal mask      */
+int sys_sigprocmask(void){
+  int sigmask; // TODO - Check with Benny weather to get int or uint.
+  if(argint(0, &sigmask) < 0)
+    return -1;
+  return sigprocmask((uint)sigmask); 
+}
+/**********************************************/

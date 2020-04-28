@@ -563,3 +563,13 @@ procdump(void)
     cprintf("\n");
   }
 }
+
+/***************** TASK-2.1.3 *****************/
+/*      Updating the process signal mask      */
+uint sigprocmask(uint sigmask){
+  struct proc *curproc = myproc();
+  uint old_maks = curproc->signal_mask;
+  curproc->signal_mask = sigmask;
+  return old_maks;
+}
+/**********************************************/

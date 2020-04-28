@@ -120,6 +120,7 @@ void            userinit(void);
 int             wait(void);
 void            wakeup(void*);
 void            yield(void);
+uint            sigprocmask(uint); // Task-2.1.3
 
 // swtch.S
 void            swtch(struct context**, struct context*);
