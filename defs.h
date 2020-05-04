@@ -108,7 +108,7 @@ int             cpuid(void);
 void            exit(void);
 int             fork(void);
 int             growproc(int);
-int             kill(int);
+int             kill(int, int);
 struct cpu*     mycpu(void);
 struct proc*    myproc();
 void            pinit(void);
@@ -192,11 +192,3 @@ void            clearpteu(pde_t *pgdir, char *uva);
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))
-
-/***************** TASK-2.1.1 *****************/
-#define SIG_DFL 0 /*default signal handling*/
-#define SIG_IGN 1 /*ignore  signal*/
-#define SIGKILL 9
-#define SIGSTOP 17
-#define SIGCONT 19
-/**********************************************/

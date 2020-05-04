@@ -130,6 +130,7 @@ found:
   for(int i = 0; i < 32; i++){
     p->signal_handlers[i] = (void*)SIG_DFL;
   }
+  p->pending_signals = 0;
   /**********************************************/
 
   return p;
@@ -504,18 +505,27 @@ wakeup(void *chan)
   release(&ptable.lock);
 }
 
-// Kill the process with the given pid.
+// Send signal to the process with the given pid.
 // Process won't exit until it returns
 // to user space (see trap in trap.c).
 int
-kill(int pid)
+kill(int pid, int signum)
 {
+  if(signum < 0 || signum > 31){
+    return -1;
+  }
+  
   struct proc *p;
 
   acquire(&ptable.lock);
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->pid == pid){
-      p->killed = 1;
+      p->killed = 1; // Delete after 2.4
+      /***************** TASK-2.2.1 *****************/ 
+      uint tmp = 1;
+      tmp = tmp << signum;
+      p->pending_signals = p->pending_signals | tmp;
+      /**********************************************/ 
       // Wake process from sleep if necessary.
       if(p->state == SLEEPING)
         p->state = RUNNABLE;
