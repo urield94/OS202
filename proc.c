@@ -676,7 +676,7 @@ void SIGCONT_handler()
 
 void sig_handler_runner(struct trapframe *tf)
 {
-  if ((tf->cs & 3) != DPL_USER) // Make sure we in kernel mode
+  if ((tf->cs & 3) != DPL_USER) // Make sure we in kernel space
     return;
 
   int sig;
@@ -707,7 +707,6 @@ void sig_handler_runner(struct trapframe *tf)
 
         if (i == SIGCONT && p->signal_handlers[i] == (void *)SIG_DFL)
         {
-            cprintf("bennuy\n");
             SIGCONT_handler(); // TODO - We might want to change this in case the user changed the SIGCONT_handler to be user-space handler.
             continue;
         }
@@ -729,16 +728,18 @@ void sig_handler_runner(struct trapframe *tf)
 
         cprintf("before backup\n", i);
 
+        //moving back to backup trapframe
         p->tf->esp -= sizeof(struct trapframe);
-        memmove((void *)(p->tf->esp), p->tf, sizeof(struct trapframe));
+        memmove((void *)(p->tf->esp), p->tf, sizeof(struct trapframe));   //backup
         p->user_trap_fram_backup = (void *)(p->tf->esp);
 
         uint size = (uint)&done_implicit_sigret - (uint)&start_implicit_sigret;
+        //clearing space for the code
         p->tf->esp -= size;
         memmove((void *)(p->tf->esp), start_implicit_sigret, size);
 
-        *((int *)(p->tf->esp - 4)) = i; //TODO: understand
-        *((int *)(p->tf->esp - 8)) = p->tf->esp;
+        *((int *)(p->tf->esp - 4)) = i; //parameter of signal number
+        *((int *)(p->tf->esp - 8)) = p->tf->esp;  //return address
         p->tf->esp -= 8;
         //p->old_signal_mask = p->signal_mask;   //TODO: check signal mask, when neet to restore it????
 
