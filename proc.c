@@ -688,7 +688,6 @@ void sig_handler_runner(struct trapframe *tf)
     if (sig)
     {
       cprintf("Execute (if not block) signal number %d...\n", i);
-
       p->pending_signals ^= (1 << i); // Remove the signal from the pending_signals
 
       // Execute SIGSTOP and SIDKILL immediatly, regardless of the process-signal-mask
@@ -741,8 +740,11 @@ void sig_handler_runner(struct trapframe *tf)
         *((int *)(p->tf->esp - 4)) = i; //TODO: understand
         *((int *)(p->tf->esp - 8)) = p->tf->esp;
         p->tf->esp -= 8;
+        //p->old_signal_mask = p->signal_mask;   //TODO: check signal mask, when neet to restore it????
+
         p->tf->eip = (uint)p->signal_handlers[i];
 
+        //p->signal_mask = p->old_signal_mask;
         cprintf("after backup\n", i);
 
         // break; // F.A.Q.6 - You can checking the pending array from the start, or continue from where you left off, whatever is more comfortable for you. (To break or not to break)
