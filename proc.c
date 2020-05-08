@@ -113,7 +113,7 @@ found:
 
   // Leave room for trap frame.
   sp -= sizeof *p->tf;
-  p->tf = (struct trapframe*)sp;
+  p->tf = (struct trapframe*)sp; // F.A.Q.11 -  In order to allocate memory for the trapframe backup, see how memory is allocated in allocproc for the existing trapframe. 
 
   // Set up new context to start executing at forkret,
   // which returns to trapret.
@@ -368,6 +368,7 @@ scheduler(void)
       if(p->state != RUNNABLE)
         continue;
 
+      // F.A.Q.8 -  In order to make SIGCONT and SIGSTOP work correctly, one must modify also the scheduler code. 
       // if(p->freeze){
       //   int sig_cont = 19;
       //   int sig_cont_mask = 1;
@@ -377,6 +378,7 @@ scheduler(void)
       //     SIGCONT_handler();
       //   }
       // }
+
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
@@ -536,7 +538,7 @@ kill(int pid, int signum)
       p->pending_signals = p->pending_signals | tmp;
       /**********************************************/ 
       // Wake process from sleep if necessary.
-      if(p->state == SLEEPING)
+      if(p->state == SLEEPING && signum == SIGKILL) // F.A.Q.2 - Should I wake a SLEEPING process on receiving a signal? Only on SIGKILL.
         p->state = RUNNABLE;
       release(&ptable.lock);
       return 0;
@@ -597,7 +599,7 @@ uint sigprocmask(uint sigmask){
 /***************** TASK-2.1.4 *****************/
 /*         Registering Signal Handlers        */
 int sigaction(int signum, const struct sigaction* act, struct sigaction* oldact){
-  if(signum == SIGKILL || signum == SIGSTOP)
+  if(signum == SIGKILL || signum == SIGSTOP) // F.A.Q.4 -  Attempting to modify the behavior for SIGKILL and SIGSTOP should results in a failed sigaction. 
     return -1;
   if(act->sigmask < 0)
     return -1;
@@ -607,7 +609,7 @@ int sigaction(int signum, const struct sigaction* act, struct sigaction* oldact)
     oldact->sa_handler = curproc->signal_handlers[signum];
     oldact->sigmask = curproc->signal_mask;
   }
-  curproc->signal_handlers[signum] = act->sa_handler;
+  curproc->signal_handlers[signum] = act->sa_handler; // F.A.Q.3 - Should sigaction signal mask add to the process or set it? Set it.
   curproc->signal_mask = act->sigmask;
   return 0;
 }
@@ -653,15 +655,19 @@ void sig_handler_runner(struct trapframe *tf){
         SIGSTOP_handler();
         continue;
       }
-      if(p->signal_handlers[i] == (void*) SIG_IGN){
-        continue;
-      }
       if(p->signal_handlers[i] == (void*) SIG_DFL || i == SIGKILL){
           SIGKILL_handler();
           continue;
       }
+      if(p->signal_handlers[i] == (void*) SIG_IGN){
+        continue;
+      }
+     // F.A.Q.5 -  Including SIGKILL and SIGSTOP bits in the blocked masks (either in sigaction, or in sigprocmask) is ok, but the blocked bit for those signals will be ignored.  - What about SIGCONT?
 
-
+    // F.A.Q.7 -  If a different signal has its handler as SIGSTOP, then by all definitions, he will act the same, e.g. the process will become frozen, and SIGCONT should awake it up, this is also true for the other case, where you can give a random signal the SIGCONT handler, and it will behave appropriately. 
+    
+    
+    // F.A.Q.10 -  The trapframe should be backed up before creating the artificial trapframe (that is, when handling pending signals, just before returning to user space) for handling user-space signals. It will be restored upon the sigret syscall. 
     // p->tf->esp -= sizeof(struct trapframe);
     // memmove((void *) (p->tf->esp), p->tf, sizeof(struct trapframe));
     // p->user_trap_fram_backup = (void *) (p->tf->esp);
@@ -674,7 +680,7 @@ void sig_handler_runner(struct trapframe *tf){
     // *((int *) (p->tf->esp - 8)) = p->tf->esp;
     // p->tf->esp -= 8;
     // p->tf->eip = (uint) p->signal_handlers[i];
-    // break;
+    // break; // F.A.Q.6 - You can checking the pending array from the start, or continue from where you left off, whatever is more comfortable for you. (To break or not to break)
     }
   }
 }

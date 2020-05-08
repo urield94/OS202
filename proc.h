@@ -53,10 +53,11 @@ struct proc {
   /***************** TASK-2.1.1 *****************/
   uint pending_signals;
   uint signal_mask;
-  void* signal_handlers[32];
+  void* signal_handlers[32]; // F.A.Q.1 - Change to sigaction* instead of void*?
   struct trapframe* user_trap_fram_backup;
   /**********************************************/
   int freeze;
+   // F.A.Q.15 -  In order to restore the original sigprocmask when resuming after handling a signal, you can create a field in proc struct in order to hold it, or you could put the older mask inside the artificial trapframe. 
 };
 
 // Process memory is laid out contiguously, low addresses first:
