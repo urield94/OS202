@@ -9,6 +9,7 @@ struct spinlock;
 struct sleeplock;
 struct stat;
 struct superblock;
+struct page;
 
 // bio.c
 void            binit(void);
@@ -195,6 +196,10 @@ void            switchuvm(struct proc*);
 void            switchkvm(void);
 int             copyout(pde_t*, uint, void*, uint);
 void            clearpteu(pde_t *pgdir, char *uva);
+int             find_free_or_occupied_page(struct proc*, int, int);
+void            disk_to_ram(uint, char*);
+void            handle_page_fault(void);
+void            swap(struct proc*, pde_t*, char*, char*);
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))
