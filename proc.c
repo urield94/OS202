@@ -130,6 +130,7 @@ found:
   {
     p->signal_handlers[i] = (void *)SIG_DFL;
   }
+
   p->pending_signals = 0;
   /**********************************************/
 
@@ -378,37 +379,55 @@ void scheduler(void)
       // F.A.Q.8 -  In order to make SIGCONT and SIGSTOP work correctly, one must modify also the scheduler code.
       if (p->freeze)
       {
-        int sig_cont = 19;
         int sig_cont_bits = 1;
-        sig_cont_bits = sig_cont_bits << sig_cont;
+        sig_cont_bits = sig_cont_bits << SIGCONT;
         int is_sig_cont_pending = p->pending_signals & sig_cont_bits;
-        if (is_sig_cont_pending)
+        if (is_sig_cont_pending && p->signal_handlers[SIGCONT] == (void *)SIG_DFL) //nobody changed the SIGCONT handler
         {
           SIGCONT_handler();
+          p->pending_signals ^= (1 << SIGCONT); // Remove the signal from the pending_signals
         }
         else
         {
-          continue;
+          for (int i = 0; i < 32; i++)
+          {
+            if (i == SIGKILL || i == SIGSTOP)
+            {
+              continue;
+            }
+            int is_sig_i_pending = p->pending_signals & (1 << i);
+            if (is_sig_i_pending && p->signal_handlers[i] == SIGCONT_handler)
+            {
+              SIGCONT_handler();
+              p->pending_signals ^= (1 << SIGCONT); // Remove the signal from the pending_signals
+              break;
+            }
+          }
         }
       }
-
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
-      c->proc = p;
-      switchuvm(p);
-      p->state = RUNNING;
-
-      swtch(&(c->scheduler), p->context);
-      switchkvm();
-
-      // Process is done running for now.
-      // It should have changed its p->state before coming back.
-      c->proc = 0;
+    
+    if (p->freeze)
+    {
+      continue;
     }
-    release(&ptable.lock);
+    // Switch to chosen process.  It is the process's job
+    // to release ptable.lock and then reacquire it
+    // before jumping back to us.
+    c->proc = p;
+    switchuvm(p);
+    p->state = RUNNING;
+
+    swtch(&(c->scheduler), p->context);
+    switchkvm();
+
+    // Process is done running for now.
+    // It should have changed its p->state before coming back.
+    c->proc = 0;
   }
+  release(&ptable.lock);
 }
+}
+
 
 // Enter scheduler.  Must hold only ptable.lock
 // and have changed proc->state. Saves and restores
@@ -633,7 +652,7 @@ void sigret()
 {
   struct proc *curr_proc = myproc();
   memmove(curr_proc->tf, curr_proc->user_trap_fram_backup, sizeof(struct trapframe));
-  curr_proc->tf->esp += sizeof (struct trapframe);
+  curr_proc->tf->esp += sizeof(struct trapframe);
 }
 /**********************************************/
 
@@ -668,7 +687,7 @@ void sig_handler_runner(struct trapframe *tf)
     sig = p->pending_signals & (1 << i); // Check whether the i's signal is turnd-on
     if (sig)
     {
-        cprintf("Execute (if not block) signal number %d...\n", i);
+      cprintf("Execute (if not block) signal number %d...\n", i);
 
       p->pending_signals ^= (1 << i); // Remove the signal from the pending_signals
 
@@ -687,13 +706,11 @@ void sig_handler_runner(struct trapframe *tf)
       if (!(p->signal_mask & sig)) // Execute signal handler if the signal does not blocked by the process-signal-mask
       {
 
-        if (i == SIGCONT)
+        if (i == SIGCONT && p->signal_handlers[i] == (void *)SIG_DFL)
         {
-          if(p->signal_handlers[i] == (void*)SIG_DFL){
+            cprintf("bennuy\n");
             SIGCONT_handler(); // TODO - We might want to change this in case the user changed the SIGCONT_handler to be user-space handler.
-          continue;
-          }
-     
+            continue;
         }
         if (p->signal_handlers[i] == (void *)SIG_DFL)
         {
@@ -710,23 +727,23 @@ void sig_handler_runner(struct trapframe *tf)
         // F.A.Q.7 -  If a different signal has its handler as SIGSTOP, then by all definitions, he will act the same, e.g. the process will become frozen, and SIGCONT should awake it up, this is also true for the other case, where you can give a random signal the SIGCONT handler, and it will behave appropriately.
 
         // F.A.Q.10 -  The trapframe should be backed up before creating the artificial trapframe (that is, when handling pending signals, just before returning to user space) for handling user-space signals. It will be restored upon the sigret syscall.
-        
-                cprintf("before backup\n", i);
+
+        cprintf("before backup\n", i);
 
         p->tf->esp -= sizeof(struct trapframe);
-        memmove((void *) (p->tf->esp), p->tf, sizeof(struct trapframe));
-        p->user_trap_fram_backup = (void *) (p->tf->esp);
+        memmove((void *)(p->tf->esp), p->tf, sizeof(struct trapframe));
+        p->user_trap_fram_backup = (void *)(p->tf->esp);
 
-        uint size = (uint) &done_implicit_sigret - (uint) &start_implicit_sigret;
+        uint size = (uint)&done_implicit_sigret - (uint)&start_implicit_sigret;
         p->tf->esp -= size;
-        memmove((void *) (p->tf->esp), start_implicit_sigret, size);
+        memmove((void *)(p->tf->esp), start_implicit_sigret, size);
 
-        *((int *) (p->tf->esp - 4)) = i;          //TODO: understand 
-        *((int *) (p->tf->esp - 8)) = p->tf->esp;
+        *((int *)(p->tf->esp - 4)) = i; //TODO: understand
+        *((int *)(p->tf->esp - 8)) = p->tf->esp;
         p->tf->esp -= 8;
-        p->tf->eip = (uint) p->signal_handlers[i];
+        p->tf->eip = (uint)p->signal_handlers[i];
 
-                        cprintf("after backup\n", i);
+        cprintf("after backup\n", i);
 
         // break; // F.A.Q.6 - You can checking the pending array from the start, or continue from where you left off, whatever is more comfortable for you. (To break or not to break)
       }

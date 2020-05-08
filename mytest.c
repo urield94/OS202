@@ -10,13 +10,18 @@ hello_world(){
 int
 main(int argc, char *argv[])
 {
-  const struct sigaction benny = {&hello_world, 0};
-
-  sigaction(3, &benny, 0);
-  kill(getpid(), 3);
-  for(int j = 0; j < 99999; j++){
+  // sigaction(3, &//benny, 0);
+  kill(getpid(), SIGSTOP);
+  for(int j = 0; j < 10; j++){
       printf(1,"%d\n", j);
   }
+  kill(getpid(), SIGCONT);
+  for (int i = 0; i < 10; i++)
+  {
+      printf(1,"%d\n", i);
+  }
+  
 
   exit();
+
 }
