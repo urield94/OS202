@@ -30,7 +30,7 @@ int
 sys_kill(void)
 {
   int pid, signum;
-  if(argint(0, &pid) < 0 || argint(0, &signum) < 0)
+  if(argint(0, &pid) < 0 || argint(1, &signum) < 0)
     return -1;
   return kill(pid, signum);
 }
@@ -93,10 +93,11 @@ sys_uptime(void)
 /***************** TASK-2.1.3 *****************/
 /*      Updating the process signal mask      */
 int sys_sigprocmask(void){
-  int sigmask; // TODO - Check with Benny weather to get int or uint.
-  if(argint(0, &sigmask) < 0)
+  uint sigmask;
+  if(argint(0, (int*)&sigmask) < 0){
     return -1;
-  return sigprocmask((uint)sigmask); 
+  }
+  return sigprocmask(sigmask);
 }
 /**********************************************/
 
@@ -124,7 +125,7 @@ int sys_sigaction(void){
 /***************** TASK-2.1.5******************/
 /*           The sigret system call           */
 int sys_sigret(void){
- // Not implemented yet
+  sigret();
  return 0;
 }
 /**********************************************/

@@ -125,10 +125,12 @@ void            yield(void);
 uint            sigprocmask(uint); // Task-2.1.3
 int sigaction(int signum, const struct sigaction* act, struct sigaction* oldact); // Task-2.1.4
 void sigret(void); // Task-2.1.5
-void SIGKILL_handler(void);
-void SIGSTOP_handler(void);
-void SIGCONT_handler(void);
-void sig_handler_runner(struct trapframe*);
+void SIGKILL_handler(void); // Task-2.3
+void SIGSTOP_handler(void); // Task-2.3
+void SIGCONT_handler(void); // Task-2.3
+void sig_handler_runner(struct trapframe*); // Task-2.4
+void start_implicit_sigret(void); // Task-2.1.5 + Task-2.4
+void done_implicit_sigret(void); // Task-2.1.5 + Task-2.4
 
 // swtch.S
 void            swtch(struct context**, struct context*);

@@ -58,6 +58,7 @@ struct proc {
   /**********************************************/
   int freeze;
    // F.A.Q.15 -  In order to restore the original sigprocmask when resuming after handling a signal, you can create a field in proc struct in order to hold it, or you could put the older mask inside the artificial trapframe. 
+  uint old_signal_mask;
 };
 
 // Process memory is laid out contiguously, low addresses first:
