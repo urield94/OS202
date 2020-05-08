@@ -23,6 +23,9 @@ alltraps:
   # Return falls through to trapret...
 .globl trapret
 trapret:
+  pushl %esp
+  call sig_handler_runner
+  addl $4, %esp
   popal
   popl %gs
   popl %fs

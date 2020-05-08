@@ -368,6 +368,15 @@ scheduler(void)
       if(p->state != RUNNABLE)
         continue;
 
+      // if(p->freeze){
+      //   int sig_cont = 19;
+      //   int sig_cont_mask = 1;
+      //   sig_cont_mask = sig_cont_mask << sig_cont;
+      //   int is_sig_cont_pending = p->pending_signals & sig_cont_mask;
+      //   if(is_sig_cont_pending){
+      //     SIGCONT_handler();
+      //   }
+      // }
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
@@ -605,10 +614,67 @@ int sigaction(int signum, const struct sigaction* act, struct sigaction* oldact)
 /**********************************************/
 
 
-/***************** TASK-2.1.5******************/
+/***************** TASK-2.1.5 ******************/
 /*           The sigret system call           */
 void sigret(){
  // Not implemented yet
 }
 /**********************************************/
 
+/***************** TASK-2.3 ******************/
+void SIGKILL_handler(){
+  myproc()->killed = 1;
+}
+void SIGSTOP_handler(){
+  if(myproc()->state == SLEEPING)
+    return;
+  myproc()->freeze = 1;
+}
+void SIGCONT_handler(){
+  myproc()->freeze = 0;
+}
+/**********************************************/
+
+void sig_handler_runner(struct trapframe *tf){
+  if ((tf->cs & 3) != DPL_USER)
+      return; 
+  int sig;
+  struct proc* p = myproc();
+
+  for(int i = 0; i < 32; i++){
+    sig = p->pending_signals & (1 << i); // Check whether the i's signal is turnd-on 
+    if(sig != 0){
+      p->pending_signals ^= (1 << i); // Remove the signal from the pending_signals
+      if(i == SIGSTOP){
+        SIGSTOP_handler();
+        continue;
+      }
+      if(i == SIGSTOP){
+        SIGSTOP_handler();
+        continue;
+      }
+      if(p->signal_handlers[i] == (void*) SIG_IGN){
+        continue;
+      }
+      if(p->signal_handlers[i] == (void*) SIG_DFL || i == SIGKILL){
+          SIGKILL_handler();
+          continue;
+      }
+
+
+    // p->tf->esp -= sizeof(struct trapframe);
+    // memmove((void *) (p->tf->esp), p->tf, sizeof(struct trapframe));
+    // p->user_trap_fram_backup = (void *) (p->tf->esp);
+
+    // uint size = (uint) &invoke_sigret_end - (uint) &invoke_sigret_start;
+    // p->tf->esp -= size;
+    // memmove((void *) (p->tf->esp), invoke_sigret_start, size);
+
+    // *((int *) (p->tf->esp - 4)) = i;
+    // *((int *) (p->tf->esp - 8)) = p->tf->esp;
+    // p->tf->esp -= 8;
+    // p->tf->eip = (uint) p->signal_handlers[i];
+    // break;
+    }
+  }
+}

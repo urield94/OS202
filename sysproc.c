@@ -113,7 +113,7 @@ int sys_sigaction(void){
     return -1;
 
   struct sigaction* oldact;
-  if(argptr(1, (void*)&oldact, sizeof(*oldact)) < 0)
+  if(argptr(2, (void*)&oldact, sizeof(*oldact)) < 0)
     return -1;
 
   return sigaction(signum, act, oldact);

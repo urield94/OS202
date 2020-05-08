@@ -10,6 +10,7 @@ struct sleeplock;
 struct stat;
 struct superblock;
 struct sigaction;
+struct trapframe;
 
 // bio.c
 void            binit(void);
@@ -124,6 +125,10 @@ void            yield(void);
 uint            sigprocmask(uint); // Task-2.1.3
 int sigaction(int signum, const struct sigaction* act, struct sigaction* oldact); // Task-2.1.4
 void sigret(void); // Task-2.1.5
+void SIGKILL_handler(void);
+void SIGSTOP_handler(void);
+void SIGCONT_handler(void);
+void sig_handler_runner(struct trapframe*);
 
 // swtch.S
 void            swtch(struct context**, struct context*);

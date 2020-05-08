@@ -10,6 +10,8 @@
         "types.h": "c",
         "param.h": "c",
         "memlayout.h": "c",
-        "x86.h": "c"
+        "x86.h": "c",
+        "mmu.h": "c",
+        "traps.h": "c"
     }
 }
