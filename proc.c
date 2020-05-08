@@ -112,6 +112,10 @@ found:
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
 
+  if(p->pid > 2){
+    createSwapFile(p);
+  }
+
   return p;
 }
 
@@ -221,6 +225,27 @@ fork(void)
   return pid;
 }
 
+void
+removePages(struct proc *p){
+  if(p->pid > 2){
+    for (int i = 0; i < 16; i++)
+    {
+      p->ram_arr[i].occupied = 0;
+      p->ram_arr[i].virtual_adrr = 0;
+      p->ram_arr[i].offset_in_swap_file = 0;
+      p->ram_arr[i].pagedir = 0;
+
+      p->swap_arr[i].occupied = 0;
+      p->swap_arr[i].virtual_adrr = 0;
+      p->swap_arr[i].offset_in_swap_file = 0;
+      p->swap_arr[i].pagedir = 0;
+      p->ram_counter = 0;
+      p->swap_counter = 0;
+    }
+    
+  }
+}
+
 // Exit the current process.  Does not return.
 // An exited process remains in the zombie state
 // until its parent calls wait() to find out it exited.
@@ -246,6 +271,12 @@ exit(void)
   iput(curproc->cwd);
   end_op();
   curproc->cwd = 0;
+
+  /**************1.3****************/
+  if(curproc->pid > 2){
+    removeSwapFile(curproc);
+  }
+  /********************************/
 
   acquire(&ptable.lock);
 
@@ -295,6 +326,11 @@ wait(void)
         p->name[0] = 0;
         p->killed = 0;
         p->state = UNUSED;
+        /*****************Task 1.3*************/
+        if(p->pid > 2){
+          removePages(p);
+        }
+        /*************************************/
         release(&ptable.lock);
         return pid;
       }

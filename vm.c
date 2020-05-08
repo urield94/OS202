@@ -281,7 +281,7 @@ int find_free_or_occupied_page(struct proc *p, int condition, int swap_or_ram)
 void disk_to_ram(uint start_pfault_va, char *pa)
 {
   struct proc *p = myproc();
-  pte_t *pfault_pte = walkpgdir(p->pgdir, (void*)start_pfault_va, 0);
+  pte_t *pfault_pte = walkpgdir(p->pgdir, (void *)start_pfault_va, 0);
   *pfault_pte |= PTE_P | PTE_W | PTE_U;
   *pfault_pte &= ~PTE_PG;
   *pfault_pte |= (uint)pa;
@@ -306,7 +306,7 @@ void handle_page_fault()
   if (p->pid > 2)
   {
     uint va = rcr2();
-    pte_t *pte = walkpgdir(p->pgdir, (void*)va, 0);
+    pte_t *pte = walkpgdir(p->pgdir, (void *)va, 0);
     if ((*pte & PTE_PG) != 0)
     {
       uint start_pfault_va = PGROUNDDOWN(va);
@@ -328,7 +328,28 @@ void handle_page_fault()
         p->ram_arr[1].occupied = 0;
         p->ram_counter--;
         disk_to_ram(start_pfault_va, new_physical_adrr);
-        
+        pde_t *helper = walkpgdir(&exile_ram->pagedir, &exile_ram->virtual_adrr, 0);
+        uint ramPa = PTE_ADDR(*helper);
+        int index = find_free_or_occupied_page(p, FREE, 0);
+        if (index == -1)
+          panic("swap_arr is occupied\n");
+        writeToSwapFile(p, (char *)exile_ram->virtual_adrr, index * PGSIZE, PGSIZE);
+        p->swap_arr[index].virtual_adrr = exile_ram->virtual_adrr;
+        p->swap_arr[index].offset_in_swap_file = index * PGSIZE;
+        p->swap_arr[index].pagedir = exile_ram->pagedir;
+        p->swap_arr[index].occupied = 1;
+        p->swap_counter++;
+        pte_t *right_pte = walkpgdir(p->pgdir, &exile_ram->virtual_adrr, 0);
+        *right_pte |= PTE_PG;
+        *right_pte &= ~PTE_P;
+        lcr3(V2P(p->pgdir));
+        uint right_pte_addr = PGROUNDDOWN(exile_ram->virtual_adrr);
+        pde_t *right_pte_down = walkpgdir(p->pgdir, (char*)right_pte_addr, 0);
+        *right_pte_down |= PTE_P | PTE_W | PTE_U;
+        *right_pte_down &= ~PTE_PG;
+        *right_pte_down |= ramPa;
+        kfree(P2V(ramPa));
+        memmove((void*) right_pte_addr, buffer, PGSIZE);
       }
     }
   }
@@ -452,6 +473,18 @@ int deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
         panic("kfree");
       char *v = P2V(pa);
       kfree(v);
+      if(myproc()->pid > 2){
+      for (int i = 0; i < 16; i++)
+      {
+        if(myproc()->ram_arr[i].virtual_adrr == a && (myproc()->ram_arr[i].pagedir == *pgdir)){
+          myproc()->ram_arr[i].occupied = 0;
+          myproc()->ram_arr[i].virtual_adrr = 0;
+          myproc()->ram_arr[i].pagedir = 0;
+          myproc()->ram_arr[i].offset_in_swap_file = 0;
+          myproc()->ram_counter--;
+        }
+      }
+      }
       *pte = 0;
     }
   }
@@ -508,6 +541,12 @@ copyuvm(pde_t *pgdir, uint sz)
       panic("copyuvm: pte should exist");
     if (!(*pte & PTE_P))
       panic("copyuvm: page not present");
+    if((myproc()->pid > 2) && (*pte && PTE_PG == 1)){
+        *pte |= PTE_PG;
+        *pte &= ~PTE_P;
+        lcr3(V2P(myproc()->pgdir));
+        continue;
+    }
     pa = PTE_ADDR(*pte);
     flags = PTE_FLAGS(*pte);
     if ((mem = kalloc()) == 0)
