@@ -544,7 +544,7 @@ int kill(int pid, int signum)
     if (p->pid == pid)
     {
       /***************** TASK-2.2.1 *****************/
-      cprintf("Signsl recieved: %d\n", signum);
+      cprintf("Signsl recieved:%d\n", signum);
       p->pending_signals = p->pending_signals | (1 << signum);
       /**********************************************/
       // Wake process from sleep if necessary.
@@ -684,13 +684,16 @@ void sig_handler_runner(struct trapframe *tf)
         continue;
       }
 
-      if (!(p->signal_mask ^ sig)) // Execute signal handler if the signal does not blocked by the process-signal-mask
+      if (!(p->signal_mask & sig)) // Execute signal handler if the signal does not blocked by the process-signal-mask
       {
 
         if (i == SIGCONT)
         {
-          SIGCONT_handler(); // TODO - We might want to change this in case the user changed the SIGCONT_handler to be user-space handler.
+          if(p->signal_handlers[i] == (void*)SIG_DFL){
+            SIGCONT_handler(); // TODO - We might want to change this in case the user changed the SIGCONT_handler to be user-space handler.
           continue;
+          }
+     
         }
         if (p->signal_handlers[i] == (void *)SIG_DFL)
         {
@@ -707,6 +710,9 @@ void sig_handler_runner(struct trapframe *tf)
         // F.A.Q.7 -  If a different signal has its handler as SIGSTOP, then by all definitions, he will act the same, e.g. the process will become frozen, and SIGCONT should awake it up, this is also true for the other case, where you can give a random signal the SIGCONT handler, and it will behave appropriately.
 
         // F.A.Q.10 -  The trapframe should be backed up before creating the artificial trapframe (that is, when handling pending signals, just before returning to user space) for handling user-space signals. It will be restored upon the sigret syscall.
+        
+                cprintf("before backup\n", i);
+
         p->tf->esp -= sizeof(struct trapframe);
         memmove((void *) (p->tf->esp), p->tf, sizeof(struct trapframe));
         p->user_trap_fram_backup = (void *) (p->tf->esp);
@@ -715,10 +721,13 @@ void sig_handler_runner(struct trapframe *tf)
         p->tf->esp -= size;
         memmove((void *) (p->tf->esp), start_implicit_sigret, size);
 
-        *((int *) (p->tf->esp - 4)) = i;
+        *((int *) (p->tf->esp - 4)) = i;          //TODO: understand 
         *((int *) (p->tf->esp - 8)) = p->tf->esp;
         p->tf->esp -= 8;
         p->tf->eip = (uint) p->signal_handlers[i];
+
+                        cprintf("after backup\n", i);
+
         // break; // F.A.Q.6 - You can checking the pending array from the start, or continue from where you left off, whatever is more comfortable for you. (To break or not to break)
       }
     }

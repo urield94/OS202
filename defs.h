@@ -123,7 +123,7 @@ int             wait(void);
 void            wakeup(void*);
 void            yield(void);
 uint            sigprocmask(uint); // Task-2.1.3
-int sigaction(int signum, const struct sigaction* act, struct sigaction* oldact); // Task-2.1.4
+int             sigaction(int signum, const struct sigaction* act, struct sigaction* oldact); // Task-2.1.4
 void sigret(void); // Task-2.1.5
 void SIGKILL_handler(void); // Task-2.3
 void SIGSTOP_handler(void); // Task-2.3
