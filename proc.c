@@ -69,11 +69,14 @@ myproc(void)
 
 int allocpid(void)
 {
+  pushcli();
   int pid;
-  acquire(&ptable.lock);
-  pid = nextpid++;
-  release(&ptable.lock);
-  return pid;
+  do{
+    pid = nextpid;
+  }
+  while(!cas(&nextpid, pid, pid+1));
+  popcli();
+  return nextpid;
 }
 
 //PAGEBREAK: 32
@@ -86,20 +89,17 @@ allocproc(void)
 {
   struct proc *p;
   char *sp;
-
-  acquire(&ptable.lock);
-
+  pushcli();
+  
   for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-    if (p->state == UNUSED)
+    if (cas(&p->state, UNUSED, EMBRYO))
       goto found;
 
-  release(&ptable.lock);
+  popcli();
   return 0;
 
 found:
-  p->state = EMBRYO;
-  release(&ptable.lock);
-
+  popcli();
   p->pid = allocpid();
 
   // Allocate kernel stack.
@@ -167,11 +167,13 @@ void userinit(void)
   // run this process. the acquire forces the above
   // writes to be visible, and the lock is also needed
   // because the assignment might not be atomic.
-  acquire(&ptable.lock);
+  pushcli();
 
-  p->state = RUNNABLE;
+  //cas(&p->state, EMBRYO, RUNNABLE); // Can be deleted?
 
-  release(&ptable.lock);
+  p->state = RUNNABLE; // Task 4 - EMBTYO to RUNNABLE
+
+  popcli();
 }
 
 // Grow current process's memory by n bytes.
@@ -245,12 +247,13 @@ int fork(void)
 
   pid = np->pid;
 
-  acquire(&ptable.lock);
+  pushcli();
 
-  np->state = RUNNABLE;
+  //cas(&p->state, EMBRYO, RUNNABLE); // Can be deleted?
 
-  release(&ptable.lock);
+  np->state = RUNNABLE; // Task 4 - EMBRYO to RUNNABLE
 
+  popcli();
   return pid;
 }
 
@@ -281,10 +284,10 @@ void exit(void)
   end_op();
   curproc->cwd = 0;
 
-  acquire(&ptable.lock);
+  acquire(&ptable.lock); // pushcli();
 
   // Parent might be sleeping in wait().
-  wakeup1(curproc->parent);
+  wakeup1(curproc->parent);  
 
   // Pass abandoned children to init.
   for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
@@ -298,7 +301,7 @@ void exit(void)
   }
 
   // Jump into the scheduler, never to return.
-  curproc->state = ZOMBIE;
+  curproc->state = ZOMBIE; // Task 4 - RUNNABLE to ZOMBIE
   sched();
   panic("zombie exit");
 }
@@ -322,7 +325,7 @@ int wait(void)
         continue;
       havekids = 1;
       if (p->state == ZOMBIE)
-      {
+      {  // Task 4 - ZOMBIE to UNUSED
         // Found one.
         pid = p->pid;
         kfree(p->kstack);
@@ -415,7 +418,7 @@ void scheduler(void)
     // before jumping back to us.
     c->proc = p;
     switchuvm(p);
-    p->state = RUNNING;
+    p->state = RUNNING;  // Task 4 - RUNNABLE to RUNNING
 
     swtch(&(c->scheduler), p->context);
     switchkvm();
@@ -458,7 +461,7 @@ void sched(void)
 void yield(void)
 {
   acquire(&ptable.lock); //DOC: yieldlock
-  myproc()->state = RUNNABLE;
+  myproc()->state = RUNNABLE; // Task 4 - RUNNING to RUNNABLE 
   sched();
   release(&ptable.lock);
 }
@@ -509,7 +512,7 @@ void sleep(void *chan, struct spinlock *lk)
   }
   // Go to sleep.
   p->chan = chan;
-  p->state = SLEEPING;
+  p->state = SLEEPING;   // Task 4 - RUNNING to SLEEPING
 
   sched();
 
@@ -534,7 +537,7 @@ wakeup1(void *chan)
 
   for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     if (p->state == SLEEPING && p->chan == chan)
-      p->state = RUNNABLE;
+      p->state = RUNNABLE;  // Task 4 - SLEPPING to RUNNABLE
 }
 
 // Wake up all processes sleeping on chan.
@@ -563,12 +566,11 @@ int kill(int pid, int signum)
     if (p->pid == pid)
     {
       /***************** TASK-2.2.1 *****************/
-      cprintf("Signsl recieved:%d\n", signum);
       p->pending_signals = p->pending_signals | (1 << signum);
       /**********************************************/
       // Wake process from sleep if necessary.
       if (p->state == SLEEPING && signum == SIGKILL) // F.A.Q.2 - Should I wake a SLEEPING process on receiving a signal? Only on SIGKILL.
-        p->state = RUNNABLE;
+        p->state = RUNNABLE;  // Task 4 - SLEPPING to RUNNABLE
       release(&ptable.lock);
       return 0;
     }
@@ -659,7 +661,6 @@ void sigret()
 /***************** TASK-2.3 ******************/
 void SIGKILL_handler()
 {
-  cprintf("Killed\n");
   myproc()->killed = 1;
 }
 void SIGSTOP_handler()
@@ -682,12 +683,15 @@ void sig_handler_runner(struct trapframe *tf)
   int sig;
   struct proc *p = myproc();
 
+  if(p == 0){
+    return;
+  }
+
   for (int i = 0; i < 32; i++)
   {
     sig = p->pending_signals & (1 << i); // Check whether the i's signal is turnd-on
     if (sig)
     {
-      cprintf("Execute (if not block) signal number %d...\n", i);
       p->pending_signals ^= (1 << i); // Remove the signal from the pending_signals
 
       // Execute SIGSTOP and SIDKILL immediatly, regardless of the process-signal-mask
@@ -726,7 +730,6 @@ void sig_handler_runner(struct trapframe *tf)
 
         // F.A.Q.10 -  The trapframe should be backed up before creating the artificial trapframe (that is, when handling pending signals, just before returning to user space) for handling user-space signals. It will be restored upon the sigret syscall.
 
-        cprintf("before backup\n", i);
 
         //moving back to backup trapframe
         p->tf->esp -= sizeof(struct trapframe);
@@ -746,7 +749,6 @@ void sig_handler_runner(struct trapframe *tf)
         p->tf->eip = (uint)p->signal_handlers[i];
 
         //p->signal_mask = p->old_signal_mask;
-        cprintf("after backup\n", i);
 
         // break; // F.A.Q.6 - You can checking the pending array from the start, or continue from where you left off, whatever is more comfortable for you. (To break or not to break)
       }

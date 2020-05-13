@@ -144,6 +144,22 @@ lcr3(uint val)
   asm volatile("movl %0,%%cr3" : : "r" (val));
 }
 
+/**************TASK-3******************/
+static inline int
+cas(volatile void *addr, int expected, int newval)
+{
+  int ret =1;
+  asm volatile("lock; cmpxchgl %3, (%2)\n\t" //if expected == [addr] then [addr] = newval , else   expected = [addr]
+  "pushfl\n\t"                              //push eflags register to top of stack
+  "popl %0\n\t"                             //pull eflags register to ret 
+  "and $0x0040, %0\n\t"                     //check ret ZF bit, and store it in ret
+  :"=m"(ret)
+  :"a" (expected), "b" (addr), "r" (newval)
+  :"memory");
+  return ret;
+}
+/**************************************/
+
 //PAGEBREAK: 36
 // Layout of the trap frame built on the stack by the
 // hardware and by trapasm.S, and passed to trap().
