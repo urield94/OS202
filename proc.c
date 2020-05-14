@@ -9,7 +9,6 @@
 
 struct
 {
-  struct spinlock lock;
   struct proc proc[NPROC];
 } ptable;
 
@@ -21,10 +20,6 @@ extern void trapret(void);
 
 static void wakeup1(void *chan);
 
-void pinit(void)
-{
-  initlock(&ptable.lock, "ptable");
-}
 
 // Must be called with interrupts disabled
 int cpuid()
@@ -338,6 +333,7 @@ int wait(void)
     // No point waiting if we don't have any children.
     if (!havekids || curproc->killed)
     {
+      curproc->chan = 0; // Clear the process channel and return
       popcli();
       return -1;
     }
@@ -345,11 +341,7 @@ int wait(void)
     // Wait for children to exit.  (See wakeup1 call in proc_exit.)
   curproc->chan = (void*) curproc;
   cas(&curproc->state, RUNNING, BEFORE_SLEEPING);
-  curproc->chan = 0;
   sched();
-
-  // Tidy up.
-    // sleep(curproc, 0); //DOC: wait-sleep
   }
 }
 
@@ -376,11 +368,8 @@ void scheduler(void)
     pushcli();
     for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     {
-          // cprintf("pending -%d\n", p->state);
-
       if (!cas(&p->state, RUNNABLE, BEFORE_RUNNING))
         continue;
-    cprintf("start run\n");
 
       // F.A.Q.8 -  In order to make SIGCONT and SIGSTOP work correctly, one must modify also the scheduler code.
       if (p->freeze)
@@ -424,7 +413,6 @@ void scheduler(void)
     p->state= RUNNING;
     swtch(&(c->scheduler), p->context);
     switchkvm();
-    cprintf("%d\n", p->state);
 
     // Process is done running for now.
     // It should have changed its p->state before coming back.
@@ -450,8 +438,6 @@ void sched(void)
   int intena;
   struct proc *p = myproc();
 
-  // if (!holding(&ptable.lock))
-  //   panic("sched ptable.lock");
   if (mycpu()->ncli != 1)
     panic("sched locks");
   if (p->state == RUNNING)
@@ -495,42 +481,39 @@ void forkret(void)
 
 // Atomically release lock and sleep on chan.
 // Reacquires lock when awakened.
-void sleep(void *chan, struct spinlock *lk)
+// Sleep function is not for processes!!!!
+void
+sleep(void *chan, struct spinlock *lk)
 {
   struct proc *p = myproc();
-
-  if (p == 0)
+  
+  if(p == 0)
     panic("sleep");
-  // acquire(lk);
 
-  // if (lk == 0)
-  //   panic("sleep without lk");
+  if(lk == 0)
+    panic("sleep without lk");
 
-  // // Must acquire ptable.lock in order to
-  // // change p->state and then call sched.
-  // // Once we hold ptable.lock, we can be
-  // // guaranteed that we won't miss any wakeup
-  // // (wakeup runs with ptable.lock locked),
-  // // so it's okay to release lk.
-  // if (lk != &ptable.lock)
-  // {                        //DOC: sleeplock0
-  //   acquire(&ptable.lock); //DOC: sleeplock1
-  //   release(lk);
-  // }
+  // Must acquire ptable.lock in order to
+  // change p->state and then call sched.
+  // Once we hold ptable.lock, we can be
+  // guaranteed that we won't miss any wakeup
+  // (wakeup runs with ptable.lock locked),
+  // so it's okay to release lk.
+  pushcli();
+  release(lk);
   // Go to sleep.
   p->chan = chan;
-  cas(&p->state, RUNNING, BEFORE_SLEEPING);
+  // cas(&(p->state), p->state, MSLEEPING);
+  p->state = BEFORE_SLEEPING;
+
   sched();
 
   // Tidy up.
   p->chan = 0;
 
   // Reacquire original lock.
-  // if (lk != &ptable.lock)
-  // { //DOC: sleeplock2
-  //   release(&ptable.lock);
-  //   acquire(lk);
-  // }
+  popcli();
+  acquire(lk);
 }
 
 //PAGEBREAK!
@@ -543,7 +526,7 @@ wakeup1(void *chan)
 
   for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
   if(p->chan == chan){
-    if(cas(&p->state, SLEEPING, BEFORE_RUNNABLE)){
+    if(cas(&p->state, SLEEPING, RUNNABLE)){
          p->chan = 0;
     }
     if(cas(&p->state, BEFORE_SLEEPING, BEFORE_RUNNABLE))
@@ -580,8 +563,10 @@ int kill(int pid, int signum)
       p->pending_signals = p->pending_signals | (1 << signum);
       /**********************************************/
       // Wake process from sleep if necessary.
-      if(signum == SIGKILL)
-        cas(&p->state, SLEEPING, BEFORE_RUNNABLE); // F.A.Q.2 - Should I wake a SLEEPING process on receiving a signal? Only on SIGKILL.
+      if(signum == SIGKILL){
+        cas(&p->state, SLEEPING, RUNNABLE); 
+        cas(&p->state, BEFORE_SLEEPING, BEFORE_RUNNABLE); 
+      }
       popcli();
       return 0;
     }
