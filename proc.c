@@ -240,7 +240,8 @@ int fork(void)
   pid = np->pid;
 
   pushcli();
-  cas(&np->state, EMBRYO, RUNNABLE);
+  np->state = RUNNABLE;
+  //cas(&np->state, EMBRYO, RUNNABLE);
   popcli();
 
   return pid;
@@ -313,7 +314,8 @@ int wait(void)
       if (p->parent != curproc)
         continue;
       havekids = 1;
-      if (cas(&p->state, ZOMBIE, BEFORE_UNUSED))
+      while(p->state== BEFORE_ZOMBIE);
+      if (p->state == ZOMBIE)
       {
         // Found one.
         pid = p->pid;
@@ -324,7 +326,7 @@ int wait(void)
         p->parent = 0;
         p->name[0] = 0;
         p->killed = 0;
-        cas(&p->state, BEFORE_UNUSED, UNUSED);
+        p->state = UNUSED;
         popcli();  
         return pid;
       }
@@ -413,14 +415,16 @@ void scheduler(void)
     p->state= RUNNING;
     swtch(&(c->scheduler), p->context);
     switchkvm();
-
     // Process is done running for now.
     // It should have changed its p->state before coming back.
-    cas(&p->state, BEFORE_ZOMBIE, ZOMBIE);
+    if(cas(&p->state, BEFORE_ZOMBIE, ZOMBIE)){
+      wakeup1(p->parent);
+    }
     cas(&p->state, BEFORE_SLEEPING, SLEEPING);
     cas(&p->state, BEFORE_RUNNABLE, RUNNABLE);
     c->proc = 0;
   }
+
 popcli();
 }
 }
@@ -503,8 +507,8 @@ sleep(void *chan, struct spinlock *lk)
   release(lk);
   // Go to sleep.
   p->chan = chan;
-  // cas(&(p->state), p->state, MSLEEPING);
-  p->state = BEFORE_SLEEPING;
+  cas(&(p->state), RUNNING, BEFORE_SLEEPING);
+  //p->state = BEFORE_SLEEPING;
 
   sched();
 
@@ -564,7 +568,7 @@ int kill(int pid, int signum)
       /**********************************************/
       // Wake process from sleep if necessary.
       if(signum == SIGKILL){
-        cas(&p->state, SLEEPING, RUNNABLE); 
+        cas(&p->state, SLEEPING, BEFORE_RUNNABLE); 
         cas(&p->state, BEFORE_SLEEPING, BEFORE_RUNNABLE); 
       }
       popcli();
@@ -584,9 +588,9 @@ void procdump(void)
   static char *states[] = {
       [UNUSED] "unused",
       [EMBRYO] "embryo",
-      [SLEEPING] "sleep ",
-      [RUNNABLE] "runble",
-      [RUNNING] "run   ",
+      [SLEEPING] "sleep",
+      [RUNNABLE] "runnable",
+      [RUNNING] "running",
       [ZOMBIE] "zombie",
       [BEFORE_SLEEPING] "-sleep",
       [BEFORE_RUNNABLE] "-runnable",
