@@ -315,7 +315,7 @@ int wait(void)
         continue;
       havekids = 1;
       while(p->state== BEFORE_ZOMBIE);
-      if (p->state == ZOMBIE)
+      if (cas(&p->state, ZOMBIE, BEFORE_UNUSED))
       {
         // Found one.
         pid = p->pid;
@@ -326,7 +326,7 @@ int wait(void)
         p->parent = 0;
         p->name[0] = 0;
         p->killed = 0;
-        p->state = UNUSED;
+        cas(&p->state, BEFORE_UNUSED, UNUSED);
         popcli();  
         return pid;
       }
@@ -568,7 +568,7 @@ int kill(int pid, int signum)
       /**********************************************/
       // Wake process from sleep if necessary.
       if(signum == SIGKILL){
-        cas(&p->state, SLEEPING, BEFORE_RUNNABLE); 
+        cas(&p->state, SLEEPING, RUNNABLE); 
         cas(&p->state, BEFORE_SLEEPING, BEFORE_RUNNABLE); 
       }
       popcli();
