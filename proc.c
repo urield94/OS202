@@ -239,10 +239,13 @@ int fork(void)
 
   pid = np->pid;
 
-  pushcli();
-  np->state = RUNNABLE;
-  //cas(&np->state, EMBRYO, RUNNABLE);
-  popcli();
+  // pushcli();
+  // np->state = RUNNABLE;
+  // //cas(&np->state, EMBRYO, RUNNABLE);
+  // popcli();
+
+   if(!cas(&np->state, EMBRYO, RUNNABLE))
+     panic("fork");
 
   return pid;
 }
@@ -275,9 +278,9 @@ void exit(void)
   curproc->cwd = 0;
 
   pushcli();
-
+  cas(&curproc->state, RUNNING, BEFORE_ZOMBIE);
   // Parent might be sleeping in wait().
-  wakeup1(curproc->parent);
+  //wakeup1(curproc->parent);           //delete or not?
 
   // Pass abandoned children to init.
   for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
@@ -291,7 +294,7 @@ void exit(void)
   }
 
   // Jump into the scheduler, never to return.
-  cas(&curproc->state, RUNNING, BEFORE_ZOMBIE);
+  
   sched();
   panic("zombie exit");
 }
@@ -307,6 +310,11 @@ int wait(void)
   pushcli();
   for (;;)
   {
+    if(!cas(&curproc->state, RUNNING, BEFORE_SLEEPING)){
+      return -1;
+    }
+    curproc->chan = (void*) curproc;
+
     // Scan through table looking for exited children.
     havekids = 0;
     for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
@@ -314,7 +322,7 @@ int wait(void)
       if (p->parent != curproc)
         continue;
       havekids = 1;
-      while(p->state== BEFORE_ZOMBIE);
+      while(p->state == BEFORE_ZOMBIE);
       if (cas(&p->state, ZOMBIE, BEFORE_UNUSED))
       {
         // Found one.
@@ -326,6 +334,8 @@ int wait(void)
         p->parent = 0;
         p->name[0] = 0;
         p->killed = 0;
+        curproc->chan = 0;
+        cas(&curproc->state, BEFORE_SLEEPING, RUNNING);
         cas(&p->state, BEFORE_UNUSED, UNUSED);
         popcli();  
         return pid;
@@ -336,13 +346,14 @@ int wait(void)
     if (!havekids || curproc->killed)
     {
       curproc->chan = 0; // Clear the process channel and return
+      if(!(cas(&curproc->state, BEFORE_SLEEPING, RUNNING))){
+        return -1;
+      }
       popcli();
       return -1;
     }
 
-    // Wait for children to exit.  (See wakeup1 call in proc_exit.)
-  curproc->chan = (void*) curproc;
-  cas(&curproc->state, RUNNING, BEFORE_SLEEPING);
+    // Wait for children to exit.  (See wakeup1 call in proc_exit.)  
   sched();
   }
 }
@@ -405,6 +416,7 @@ void scheduler(void)
     
     if (p->freeze)
     {
+      cas(&p->state, BEFORE_RUNNING, RUNNABLE);
       continue;
     }
     // Switch to chosen process.  It is the process's job
@@ -442,8 +454,8 @@ void sched(void)
   int intena;
   struct proc *p = myproc();
 
-  if (mycpu()->ncli != 1)
-    panic("sched locks");
+  while (mycpu()->ncli > 1)
+    popcli();
   if (p->state == RUNNING)
     panic("sched running");
   if (readeflags() & FL_IF)
@@ -504,20 +516,21 @@ sleep(void *chan, struct spinlock *lk)
   // (wakeup runs with ptable.lock locked),
   // so it's okay to release lk.
   pushcli();
-  release(lk);
+  
   // Go to sleep.
   p->chan = chan;
   cas(&(p->state), RUNNING, BEFORE_SLEEPING);
   //p->state = BEFORE_SLEEPING;
-
+  release(lk);
   sched();
 
   // Tidy up.
-  p->chan = 0;
+  //p->chan = 0;
 
   // Reacquire original lock.
+   acquire(lk);
   popcli();
-  acquire(lk);
+ 
 }
 
 //PAGEBREAK!
@@ -530,11 +543,13 @@ wakeup1(void *chan)
 
   for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
   if(p->chan == chan){
-    if(cas(&p->state, SLEEPING, RUNNABLE)){
+    while(p->state == BEFORE_SLEEPING);
+    if(cas(&p->state, SLEEPING, BEFORE_RUNNABLE)){
          p->chan = 0;
+         cas(&p->state, BEFORE_RUNNABLE, RUNNABLE);
     }
-    if(cas(&p->state, BEFORE_SLEEPING, BEFORE_RUNNABLE))
-          p->chan = 0;
+    // if(cas(&p->state, BEFORE_SLEEPING, BEFORE_RUNNABLE))
+    //       p->chan = 0;
   }
 }
 
