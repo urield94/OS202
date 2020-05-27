@@ -29,10 +29,11 @@ sys_wait(void)
 int
 sys_kill(void)
 {
-  int pid, signum;
-  if(argint(0, &pid) < 0 || argint(1, &signum) < 0)
+  int pid;
+
+  if(argint(0, &pid) < 0)
     return -1;
-  return kill(pid, signum);
+  return kill(pid);
 }
 
 int
@@ -88,45 +89,3 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
-
-
-/***************** TASK-2.1.3 *****************/
-/*      Updating the process signal mask      */
-int sys_sigprocmask(void){
-  uint sigmask;
-  if(argint(0, (int*)&sigmask) < 0){
-    return -1;
-  }
-  return sigprocmask(sigmask);
-}
-/**********************************************/
-
-
-/***************** TASK-2.1.4 *****************/
-/*         Registering Signal Handlers        */
-int sys_sigaction(void){
-  int signum;
-  if(argint(0, &signum) < 0)
-    return -1;
-  
-  struct sigaction* act;
-  if(argptr(1, (void*)&act, sizeof(*act)) < 0)
-    return -1;
-
-  struct sigaction* oldact;
-  if(argptr(2, (void*)&oldact, sizeof(*oldact)) < 0)
-    return -1;
-
-  return sigaction(signum, act, oldact);
-}
-/**********************************************/
-
-
-/***************** TASK-2.1.5******************/
-/*           The sigret system call           */
-int sys_sigret(void){
-  sigret();
- return 0;
-}
-/**********************************************/
-

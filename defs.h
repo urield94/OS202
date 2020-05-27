@@ -9,8 +9,6 @@ struct spinlock;
 struct sleeplock;
 struct stat;
 struct superblock;
-struct sigaction;
-struct trapframe;
 
 // bio.c
 void            binit(void);
@@ -54,6 +52,16 @@ struct inode*   nameiparent(char*, char*);
 int             readi(struct inode*, char*, uint, uint);
 void            stati(struct inode*, struct stat*);
 int             writei(struct inode*, char*, uint, uint);
+int				createSwapFile(struct proc* p);
+int				readFromSwapFile(struct proc * p, char* buffer, uint placeOnFile, uint size);
+int				writeToSwapFile(struct proc* p, char* buffer, uint placeOnFile, uint size);
+int				removeSwapFile(struct proc* p);
+
+
+// sysfile
+struct inode*	create(char *path, short type, short major, short minor);
+int				isdirempty(struct inode *dp);
+
 
 // ide.c
 void            ideinit(void);
@@ -109,7 +117,7 @@ int             cpuid(void);
 void            exit(void);
 int             fork(void);
 int             growproc(int);
-int             kill(int, int);
+int             kill(int);
 struct cpu*     mycpu(void);
 struct proc*    myproc();
 void            pinit(void);
@@ -122,15 +130,6 @@ void            userinit(void);
 int             wait(void);
 void            wakeup(void*);
 void            yield(void);
-uint            sigprocmask(uint); // Task-2.1.3
-int             sigaction(int signum, const struct sigaction* act, struct sigaction* oldact); // Task-2.1.4
-void sigret(void); // Task-2.1.5
-void SIGKILL_handler(void); // Task-2.3
-void SIGSTOP_handler(void); // Task-2.3
-void SIGCONT_handler(void); // Task-2.3
-void sig_handler_runner(struct trapframe*); // Task-2.4
-void start_implicit_sigret(void); // Task-2.1.5 + Task-2.4
-void done_implicit_sigret(void); // Task-2.1.5 + Task-2.4
 
 // swtch.S
 void            swtch(struct context**, struct context*);
