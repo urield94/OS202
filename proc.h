@@ -1,3 +1,13 @@
+#define MAX_PYSC_PAGES 16
+#define MAX_TOTAL_PAGES 32
+
+struct page{
+  int occupied;
+  uint virtual_adrr;
+  uint pagedir;
+  uint offset_in_swap_file;
+}
+
 // Per-CPU state
 struct cpu {
   uchar apicid;                // Local APIC ID
@@ -51,6 +61,8 @@ struct proc {
   char name[16];               // Process name (debugging)
   //Swap file. must initiate with create swap file
   struct file *swapFile;      //page file
+  struct page ram_arr[MAX_PYSC_PAGES];
+  struct page swap_arr[MAX_PYSC_PAGES];
 };
 
 // Process memory is laid out contiguously, low addresses first:
