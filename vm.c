@@ -341,13 +341,7 @@ void handle_page_fault()
     }
     else
     {
-      struct page exile_ram = p->ram_arr[0];
-      // exile_ram->offset_in_swap_file = p->ram_arr[1].offset_in_swap_file;
-      // exile_ram->virtual_adrr = p->ram_arr[1].virtual_adrr;
-      // exile_ram->pagedir = p->ram_arr[1].pagedir;
-      // exile_ram->occupied = 1;
-      // p->ram_arr[1].occupied = 0;
-      // p->ram_counter--;
+      struct page exile_ram = p->ram_arr[0];      //this will change in task 3
       disk_to_ram(start_pfault_va, new_physical_adrr);
       memmove(new_physical_adrr, buffer, PGSIZE);
       int index = find_free_or_occupied_page(p, FREE, 0);
@@ -367,12 +361,6 @@ void handle_page_fault()
       *helper &= ~PTE_P;
       *helper &= PTE_FLAGS(*helper);
       lcr3(V2P(p->pgdir));
-
-      // uint right_pte_addr = PGROUNDDOWN(exile_ram->virtual_adrr);
-      // pde_t *right_pte_down = walkpgdir(p->pgdir, (char *)right_pte_addr, 0);
-      // *right_pte_down |= PTE_P | PTE_W | PTE_U;
-      // *right_pte_down &= ~PTE_PG;
-      // *right_pte_down |= ramPa;
       kfree((char *)P2V(ramPa));
     }
   }
@@ -465,7 +453,7 @@ int allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
     if (p->pid > 2)
     {
       int i = 0;
-      if ((i = find_free_or_occupied_page(p, FREE, 1)) != -1)
+      if ((i = find_free_or_occupied_page(p, FREE, 1)) >= 0)
       { //case 1: put page in ram
         p->ram_arr[i].occupied = 1;
         p->ram_arr[i].offset_in_swap_file = -1;
@@ -513,9 +501,6 @@ int deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
           if (myproc()->ram_arr[i].virtual_adrr == a && (myproc()->ram_arr[i].pagedir == pgdir))
           {
             myproc()->ram_arr[i].occupied = 0;
-            myproc()->ram_arr[i].virtual_adrr = 0;
-            myproc()->ram_arr[i].pagedir = 0;
-            myproc()->ram_arr[i].offset_in_swap_file = -1;
           }
         }
       }
@@ -575,14 +560,16 @@ copyuvm(pde_t *pgdir, uint sz)
       panic("(copyuvm: pte should exist");
     if (!(*pte & PTE_P))
       panic("copyuvm: page not present");
-    if ((myproc()->pid > 2) && (*pte && PTE_PG == 1))
+    if ((myproc()->pid > 2))
     {
+      if(*pte & PTE_PG){
       pte = walkpgdir(d, (int *)i, 0);
       *pte |= PTE_PG;
       *pte &= ~PTE_P;
       *pte &= PTE_FLAGS(*pte);
       lcr3(V2P(myproc()->pgdir));
       continue;
+      }
     }
     pa = PTE_ADDR(*pte);
     flags = PTE_FLAGS(*pte);

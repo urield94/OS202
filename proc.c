@@ -296,6 +296,8 @@ void exit(void)
     }
   }
 
+
+
   begin_op();
   iput(curproc->cwd);
   end_op();
@@ -358,14 +360,14 @@ int wait(void)
         p->pid = 0;
         p->parent = 0;
         p->name[0] = 0;
-        p->killed = 0;
-        p->state = UNUSED;
         /*****************Task 1.3*************/
         if (p->pid > 2)
         {
           removePages(p);
         }
         /*************************************/
+        p->killed = 0;
+        p->state = UNUSED;
         release(&ptable.lock);
         return pid;
       }
