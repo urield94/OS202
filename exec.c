@@ -93,6 +93,20 @@ exec(char *path, char **argv)
       last = s+1;
   safestrcpy(curproc->name, last, sizeof(curproc->name));
 
+  if(curproc->pid > 2){
+    // for (int i = 0; i < 16; i++)
+    // {
+    //   if(curproc->ram_arr[i].occupied){
+    //   curproc->ram_arr[i].pagedir = pgdir;
+    //   }
+    //   if(curproc->swap_arr[i].occupied){
+    //   curproc->swap_arr[i].pagedir = pgdir;
+    //   }
+    // }
+    removeSwapFile(curproc);
+    createSwapFile(curproc);
+  }
+
   // Commit to the user image.
   oldpgdir = curproc->pgdir;
   curproc->pgdir = pgdir;

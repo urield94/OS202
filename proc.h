@@ -4,7 +4,7 @@
 struct page{
   int occupied;
   uint virtual_adrr;
-  uint pagedir;
+  pde_t* pagedir;
   uint offset_in_swap_file;
 };
 

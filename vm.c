@@ -226,15 +226,13 @@ int loaduvm(pde_t *pgdir, char *addr, struct inode *ip, uint offset, uint sz)
 
 int find_free_or_occupied_page(struct proc *p, int condition, int swap_or_ram)
 {
-  struct page *array = 0;
   if (condition == 1)
   { //in this case we want to find free page
     for (int i = 0; i < 16; i++)
     {
       if (swap_or_ram == 1)
       { //find in ram_arr
-        array = &p->ram_arr[i];
-        if (array->occupied)
+        if (p->ram_arr[i].occupied)
         {
           continue;
         }
@@ -242,8 +240,7 @@ int find_free_or_occupied_page(struct proc *p, int condition, int swap_or_ram)
       }
       else
       { //find in swap_arr
-        array = &p->swap_arr[i];
-        if (array->occupied)
+        if (p->swap_arr[i].occupied)
         {
           continue;
         }
@@ -257,8 +254,7 @@ int find_free_or_occupied_page(struct proc *p, int condition, int swap_or_ram)
     {
       if (swap_or_ram == 1)
       { //find in ram_arr
-        array = &p->ram_arr[i];
-        if (!array->occupied)
+        if (!p->ram_arr[i].occupied)
         {
           continue;
         }
@@ -266,8 +262,7 @@ int find_free_or_occupied_page(struct proc *p, int condition, int swap_or_ram)
       }
       else
       { //find in swap_arr
-        array = &p->swap_arr[i];
-        if (!array->occupied)
+        if (!p->swap_arr[i].occupied)
         {
           continue;
         }
@@ -278,26 +273,51 @@ int find_free_or_occupied_page(struct proc *p, int condition, int swap_or_ram)
   return -1;
 }
 
-void disk_to_ram(uint start_pfault_va, char *pa)
+int get_pte_flags(int va, pde_t *pgdir)
+{
+  pde_t *pte = walkpgdir(pgdir, (int *)va, 0);
+  if (!pte)
+    return -1;
+  return PTE_FLAGS(*pte);
+}
+
+void disk_to_ram(uint start_pfault_va, char *ka)
 {
   struct proc *p = myproc();
-  pte_t *pfault_pte = walkpgdir(p->pgdir, (void *)start_pfault_va, 0);
-  *pfault_pte |= PTE_P | PTE_W | PTE_U;
-  *pfault_pte &= ~PTE_PG;
-  *pfault_pte |= (uint)pa;
-  for (int i = 0; i < 16; i++)
+  if (p->pid > 2)
   {
-    if (p->swap_arr[i].virtual_adrr == start_pfault_va)
+    int perm = get_pte_flags(start_pfault_va, p->pgdir);
+
+    //map all virtual addresses to the apropriate physical ones
+    mappages(p->pgdir, (void *)start_pfault_va, PGSIZE, V2P(ka), perm);
+
+    pde_t *pfault_pte = walkpgdir(p->pgdir, (void *)start_pfault_va, 0);
+    *pfault_pte |= PTE_P | PTE_W | PTE_U; //declare that page is present, writable and owned by the user
+    *pfault_pte &= ~PTE_PG;               //turn on paged_out flag
+    lcr3(V2P(p->pgdir));                  //refresh TLB
+
+    for (int i = 0; i < 16; i++)
     {
-      readFromSwapFile(p, buffer, i * PGSIZE, PGSIZE);
-      int ram_index = find_free_or_occupied_page(p, FREE, 1);
-      p->ram_arr[ram_index].offset_in_swap_file = p->swap_arr[i].offset_in_swap_file;
-      p->ram_arr[ram_index].virtual_adrr = p->swap_arr[i].virtual_adrr;
-      p->ram_arr[ram_index].pagedir = p->swap_arr[i].pagedir;
-      p->ram_arr[ram_index].occupied = 1;
-      p->ram_counter++;
+      if (p->swap_arr[i].virtual_adrr == start_pfault_va)
+      {
+        readFromSwapFile(p, buffer, i * PGSIZE, PGSIZE);
+        int ram_index = find_free_or_occupied_page(p, FREE, 1);
+        p->ram_arr[ram_index].offset_in_swap_file = p->swap_arr[i].offset_in_swap_file;
+        p->ram_arr[ram_index].virtual_adrr = p->swap_arr[i].virtual_adrr;
+        p->ram_arr[ram_index].pagedir = p->swap_arr[i].pagedir;
+        p->ram_arr[ram_index].occupied = 1;
+        p->swap_arr[i].occupied = 0;
+        break;
+      }
     }
   }
+}
+
+int isValidPage(pde_t *pgdir)
+{
+  uint va = rcr2();
+  pte_t *pte = walkpgdir(pgdir, (char *)va, 0);
+  return (*pte & PTE_PG);
 }
 
 void handle_page_fault()
@@ -305,52 +325,55 @@ void handle_page_fault()
   struct proc *p = myproc();
   if (p->pid > 2)
   {
-    uint va = rcr2();
-    pte_t *pte = walkpgdir(p->pgdir, (void *)va, 0);
-    if ((*pte & PTE_PG) != 0)
+    uint start_pfault_va = PGROUNDDOWN(rcr2());
+
+    /*allocate physical address and reset it*/
+    char *new_physical_adrr = kalloc();
+    if (new_physical_adrr == 0)
+      panic("allocuvm out of memory\n");
+    memset(new_physical_adrr, 0, PGSIZE);
+
+    int ram_index = find_free_or_occupied_page(p, FREE, 1);
+    if (ram_index >= 0)
     {
-      uint start_pfault_va = PGROUNDDOWN(va);
-      char *new_physical_adrr = kalloc();
-      if (new_physical_adrr == 0)
-        panic("allocuvm out of memory\n");
-      if (p->ram_counter < 16)
-      {
-        disk_to_ram(start_pfault_va, new_physical_adrr);
-        memmove((void *)start_pfault_va, buffer, PGSIZE);
-      }
-      else
-      {
-        struct page *exile_ram = 0;
-        exile_ram->offset_in_swap_file = p->ram_arr[1].offset_in_swap_file;
-        exile_ram->virtual_adrr = p->ram_arr[1].virtual_adrr;
-        exile_ram->pagedir = p->ram_arr[1].pagedir;
-        exile_ram->occupied = 1;
-        p->ram_arr[1].occupied = 0;
-        p->ram_counter--;
-        disk_to_ram(start_pfault_va, new_physical_adrr);
-        pde_t *helper = walkpgdir(&exile_ram->pagedir, &exile_ram->virtual_adrr, 0);
-        uint ramPa = PTE_ADDR(*helper);
-        int index = find_free_or_occupied_page(p, FREE, 0);
-        if (index == -1)
-          panic("swap_arr is occupied\n");
-        writeToSwapFile(p, (char *)exile_ram->virtual_adrr, index * PGSIZE, PGSIZE);
-        p->swap_arr[index].virtual_adrr = exile_ram->virtual_adrr;
-        p->swap_arr[index].offset_in_swap_file = index * PGSIZE;
-        p->swap_arr[index].pagedir = exile_ram->pagedir;
-        p->swap_arr[index].occupied = 1;
-        p->swap_counter++;
-        pte_t *right_pte = walkpgdir(p->pgdir, &exile_ram->virtual_adrr, 0);
-        *right_pte |= PTE_PG;
-        *right_pte &= ~PTE_P;
-        lcr3(V2P(p->pgdir));
-        uint right_pte_addr = PGROUNDDOWN(exile_ram->virtual_adrr);
-        pde_t *right_pte_down = walkpgdir(p->pgdir, (char*)right_pte_addr, 0);
-        *right_pte_down |= PTE_P | PTE_W | PTE_U;
-        *right_pte_down &= ~PTE_PG;
-        *right_pte_down |= ramPa;
-        kfree(P2V(ramPa));
-        memmove((void*) right_pte_addr, buffer, PGSIZE);
-      }
+      disk_to_ram(start_pfault_va, new_physical_adrr);
+      memmove((void *)start_pfault_va, buffer, PGSIZE);
+    }
+    else
+    {
+      struct page exile_ram = p->ram_arr[0];
+      // exile_ram->offset_in_swap_file = p->ram_arr[1].offset_in_swap_file;
+      // exile_ram->virtual_adrr = p->ram_arr[1].virtual_adrr;
+      // exile_ram->pagedir = p->ram_arr[1].pagedir;
+      // exile_ram->occupied = 1;
+      // p->ram_arr[1].occupied = 0;
+      // p->ram_counter--;
+      disk_to_ram(start_pfault_va, new_physical_adrr);
+      memmove(new_physical_adrr, buffer, PGSIZE);
+      int index = find_free_or_occupied_page(p, FREE, 0);
+      if (index == -1)
+        panic("swap_arr is occupied\n");
+      writeToSwapFile(p, (char *)exile_ram.virtual_adrr, index * PGSIZE, PGSIZE);
+
+      p->swap_arr[index].virtual_adrr = exile_ram.virtual_adrr;
+      p->swap_arr[index].offset_in_swap_file = index * PGSIZE;
+      p->swap_arr[index].pagedir = exile_ram.pagedir;
+      p->swap_arr[index].occupied = 1;
+
+      pde_t *helper = walkpgdir(exile_ram.pagedir, (int *)exile_ram.virtual_adrr, 0);
+      uint ramPa = PTE_ADDR(*helper);
+
+      *helper |= PTE_PG;
+      *helper &= ~PTE_P;
+      *helper &= PTE_FLAGS(*helper);
+      lcr3(V2P(p->pgdir));
+
+      // uint right_pte_addr = PGROUNDDOWN(exile_ram->virtual_adrr);
+      // pde_t *right_pte_down = walkpgdir(p->pgdir, (char *)right_pte_addr, 0);
+      // *right_pte_down |= PTE_P | PTE_W | PTE_U;
+      // *right_pte_down &= ~PTE_PG;
+      // *right_pte_down |= ramPa;
+      kfree((char *)P2V(ramPa));
     }
   }
 }
@@ -359,37 +382,48 @@ void handle_page_fault()
 
 /****************swap function - Task 1.2******************/
 
-void swap(struct proc *p, pde_t *pagedir, char *mem, char *page_in_swap)
+void swap(struct proc *p, pde_t *pagedir, uint mem)
 {
-  int index_ram = find_free_or_occupied_page(p, OCCUPIED, 1);
-  if (index_ram == -1)
-    panic("no occupied cell in ram_arr\n");
-  int index_swap = find_free_or_occupied_page(p, FREE, 0);
-  if (index_swap == -1)
-    panic("swap_arr is occupied\n");
-  if (!p->swapFile)
+  if (p->pid > 2)
   {
-    createSwapFile(p);
+    /*find avaiable and occupied spaces in ram_arr and swap_arr */
+
+    int index_ram = find_free_or_occupied_page(p, OCCUPIED, 1);
+    if (index_ram == -1)
+      panic("no occupied cell in ram_arr\n");
+    int index_swap = find_free_or_occupied_page(p, FREE, 0);
+    if (index_swap == -1)
+      panic("swap_arr is occupied\n");
+
+    /*write to swapFile and update swap_arr*/
+
+    if ((writeToSwapFile(p, (char *)p->ram_arr[index_ram].virtual_adrr, index_swap * PGSIZE, PGSIZE)) == -1)
+    {
+      panic("wrtie to swapFile failed..\n");
+    }
+    p->swap_arr[index_swap].virtual_adrr = mem;
+    p->swap_arr[index_swap].offset_in_swap_file = index_swap * PGSIZE;
+    p->swap_arr[index_swap].pagedir = pagedir;
+    p->swap_arr[index_swap].occupied = 1;
+
+    /*clear physical address of ram_arr[index] PTE*/
+
+    pte_t *pte = walkpgdir(pagedir, (int *)p->ram_arr[index_ram].virtual_adrr, 0);
+    uint pa = PTE_ADDR(*pte);
+    kfree(P2V(pa));
+
+    p->ram_arr[index_ram].occupied = 0;
+
+    *pte |= PTE_PG;
+    *pte &= ~PTE_P;
+    *pte &= PTE_FLAGS(*pte); //clear flags for pte
+    lcr3(V2P(p->pgdir));     //flush the TLB
+
+    p->ram_arr[index_ram].virtual_adrr = mem;
+    p->ram_arr[index_ram].pagedir = pagedir;
+    p->ram_arr[index_ram].occupied = 1;
+    p->ram_arr[index_ram].offset_in_swap_file = -1;
   }
-  struct page *ram_page = &p->ram_arr[index_ram];
-  writeToSwapFile(p, (char *)ram_page->virtual_adrr, index_swap * PGSIZE, PGSIZE);
-  p->swap_arr[index_swap].virtual_adrr = ram_page->virtual_adrr;
-  p->swap_arr[index_swap].offset_in_swap_file = index_swap * PGSIZE;
-  p->swap_arr[index_swap].pagedir = ram_page->pagedir;
-  p->swap_arr[index_swap].occupied = 1;
-  p->swap_counter++;
-
-  pte_t *pte = walkpgdir(&ram_page->pagedir, &ram_page->virtual_adrr, 0);
-  uint pa = PTE_ADDR(*pte);
-  kfree(P2V(pa));
-
-  p->ram_arr[index_ram].occupied = 0;
-  *pte |= PTE_PG;
-  *pte &= ~PTE_P;
-  lcr3(V2P(p->pgdir));
-  p->ram_arr[index_ram].virtual_adrr = (uint)mem;
-  p->ram_arr[index_ram].pagedir = *pagedir;
-  p->ram_arr[index_ram].occupied = 1;
 }
 
 /***********************************************************/
@@ -428,20 +462,19 @@ int allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
       kfree(mem);
       return 0;
     }
-    if (myproc()->pid > 2)
+    if (p->pid > 2)
     {
-      if (p->ram_counter < 16)
-      { //case 1: pur page in ram_array
-        struct page *ram_page = &p->ram_arr[p->ram_counter];
-        ram_page->occupied = 1;
-        ram_page->offset_in_swap_file = 0;
-        ram_page->pagedir = *pgdir;
-        ram_page->virtual_adrr = (uint)mem;
-        p->ram_counter++;
+      int i = 0;
+      if ((i = find_free_or_occupied_page(p, FREE, 1)) != -1)
+      { //case 1: put page in ram
+        p->ram_arr[i].occupied = 1;
+        p->ram_arr[i].offset_in_swap_file = -1;
+        p->ram_arr[i].pagedir = pgdir;
+        p->ram_arr[i].virtual_adrr = a;
       }
       else
       { //case 2: no space in ram, so we swap
-        swap(p, pgdir, mem, 0);
+        swap(p, pgdir, a);
       }
     }
   }
@@ -473,17 +506,18 @@ int deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
         panic("kfree");
       char *v = P2V(pa);
       kfree(v);
-      if(myproc()->pid > 2){
-      for (int i = 0; i < 16; i++)
+      if (myproc()->pid > 2)
       {
-        if(myproc()->ram_arr[i].virtual_adrr == a && (myproc()->ram_arr[i].pagedir == *pgdir)){
-          myproc()->ram_arr[i].occupied = 0;
-          myproc()->ram_arr[i].virtual_adrr = 0;
-          myproc()->ram_arr[i].pagedir = 0;
-          myproc()->ram_arr[i].offset_in_swap_file = 0;
-          myproc()->ram_counter--;
+        for (int i = 0; i < 16; i++)
+        {
+          if (myproc()->ram_arr[i].virtual_adrr == a && (myproc()->ram_arr[i].pagedir == pgdir))
+          {
+            myproc()->ram_arr[i].occupied = 0;
+            myproc()->ram_arr[i].virtual_adrr = 0;
+            myproc()->ram_arr[i].pagedir = 0;
+            myproc()->ram_arr[i].offset_in_swap_file = -1;
+          }
         }
-      }
       }
       *pte = 0;
     }
@@ -538,14 +572,17 @@ copyuvm(pde_t *pgdir, uint sz)
   for (i = 0; i < sz; i += PGSIZE)
   {
     if ((pte = walkpgdir(pgdir, (void *)i, 0)) == 0)
-      panic("copyuvm: pte should exist");
+      panic("(copyuvm: pte should exist");
     if (!(*pte & PTE_P))
       panic("copyuvm: page not present");
-    if((myproc()->pid > 2) && (*pte && PTE_PG == 1)){
-        *pte |= PTE_PG;
-        *pte &= ~PTE_P;
-        lcr3(V2P(myproc()->pgdir));
-        continue;
+    if ((myproc()->pid > 2) && (*pte && PTE_PG == 1))
+    {
+      pte = walkpgdir(d, (int *)i, 0);
+      *pte |= PTE_PG;
+      *pte &= ~PTE_P;
+      *pte &= PTE_FLAGS(*pte);
+      lcr3(V2P(myproc()->pgdir));
+      continue;
     }
     pa = PTE_ADDR(*pte);
     flags = PTE_FLAGS(*pte);
