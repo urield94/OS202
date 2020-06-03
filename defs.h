@@ -132,7 +132,7 @@ int             wait(void);
 void            wakeup(void*);
 void            yield(void);
 void            removePages(struct proc*);
-
+int 			gnofp(void);
 // swtch.S
 void            swtch(struct context**, struct context*);
 

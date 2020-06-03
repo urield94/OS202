@@ -347,8 +347,9 @@ void handle_page_fault()
       int index = find_free_or_occupied_page(p, FREE, 0);
       if (index == -1)
         panic("swap_arr is occupied\n");
-      writeToSwapFile(p, (char *)exile_ram.virtual_adrr, index * PGSIZE, PGSIZE);
-
+      cprintf("the index is:%d\n", exile_ram.virtual_adrr);
+      if((writeToSwapFile(p, (char *)exile_ram.virtual_adrr, index*PGSIZE, PGSIZE)) == -1)
+        panic("cant write file\n");
       p->swap_arr[index].virtual_adrr = exile_ram.virtual_adrr;
       p->swap_arr[index].offset_in_swap_file = index * PGSIZE;
       p->swap_arr[index].pagedir = exile_ram.pagedir;
@@ -427,7 +428,8 @@ int allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
     return 0;
   if (newsz < oldsz)
     return oldsz;
-
+  if (p->pid > 2 && PGROUNDUP(newsz) / PGSIZE > MAX_TOTAL_PAGES)
+    return 0;
   a = PGROUNDUP(oldsz);
   for (; a < newsz; a += PGSIZE)
   {

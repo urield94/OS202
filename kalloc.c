@@ -21,6 +21,7 @@ struct {
   struct spinlock lock;
   int use_lock;
   struct run *freelist;
+  int number_of_free_pages; //COW test
 } kmem;
 
 // Initialization happens in two phases.
@@ -33,6 +34,7 @@ kinit1(void *vstart, void *vend)
 {
   initlock(&kmem.lock, "kmem");
   kmem.use_lock = 0;
+  kmem.number_of_free_pages = 0; //COW test
   freerange(vstart, vend);
 }
 
@@ -67,6 +69,8 @@ kfree(char *v)
   // Fill with junk to catch dangling refs.
   memset(v, 1, PGSIZE);
 
+  kmem.number_of_free_pages++; //COW test
+
   if(kmem.use_lock)
     acquire(&kmem.lock);
   r = (struct run*)v;
@@ -87,10 +91,22 @@ kalloc(void)
   if(kmem.use_lock)
     acquire(&kmem.lock);
   r = kmem.freelist;
-  if(r)
+  if(r){
     kmem.freelist = r->next;
+    kmem.number_of_free_pages--; //COW test
+  }
   if(kmem.use_lock)
     release(&kmem.lock);
   return (char*)r;
 }
 
+//COW test
+int gnofp(void)
+{
+  if(kmem.use_lock)
+    acquire(&kmem.lock);
+  int _gnofp = kmem.number_of_free_pages;
+  if(kmem.use_lock)
+    release(&kmem.lock);
+  return _gnofp;
+}

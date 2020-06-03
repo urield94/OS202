@@ -78,7 +78,7 @@ trap(struct trapframe *tf)
     lapiceoi();
     break;
   case T_PGFLT:
-  if(isValidPage(myproc()->pgdir)){
+  if(myproc() != 0 && ((tf->cs & 3) == 3) && isValidPage(myproc()->pgdir)){
     handle_page_fault();
     lapiceoi();
     break;
