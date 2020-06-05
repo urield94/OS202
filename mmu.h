@@ -20,7 +20,6 @@
 
 // cpu->gdt[NSEGS] holds the above segments.
 #define NSEGS     6
-
 #ifndef __ASSEMBLER__
 // Segment Descriptor
 struct segdesc {

@@ -133,6 +133,11 @@ void            wakeup(void*);
 void            yield(void);
 void            removePages(struct proc*);
 int 			gnofp(void);
+void            increment_reference_count(uint);
+void            decrement_reference_count(uint);
+uint            get_reference_count(uint);
+
+
 // swtch.S
 void            swtch(struct context**, struct context*);
 
@@ -199,8 +204,10 @@ int             copyout(pde_t*, uint, void*, uint);
 void            clearpteu(pde_t *pgdir, char *uva);
 int             find_free_or_occupied_page(struct proc*, int, int);
 void            disk_to_ram(uint, char*);
+void            read_only_page_fault(void);
 void            handle_page_fault(void);
 int             isValidPage(pde_t*);
+int             isReadOnlyPage(pde_t*);
 void            swap(struct proc*, pde_t*, uint);
 
 // number of elements in fixed-size array

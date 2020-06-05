@@ -78,11 +78,12 @@ trap(struct trapframe *tf)
     lapiceoi();
     break;
   case T_PGFLT:
-  if(myproc() != 0 && ((tf->cs & 3) == 3) && isValidPage(myproc()->pgdir)){
-    handle_page_fault();
+    if(isReadOnlyPage(myproc()->pgdir))
+      read_only_page_fault();
+    if(myproc() != 0 && ((tf->cs & 3) == 3) && isValidPage(myproc()->pgdir))
+      handle_page_fault();
     lapiceoi();
     break;
-  }
   //PAGEBREAK: 13
   default:
     if(myproc() == 0 || (tf->cs&3) == 0){

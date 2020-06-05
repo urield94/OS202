@@ -320,6 +320,62 @@ int isValidPage(pde_t *pgdir)
   return (*pte & PTE_PG);
 }
 
+int isReadOnlyPage(pde_t *pgdir)
+{
+  uint va = rcr2();
+  pte_t *pte = walkpgdir(pgdir, (char *)va, 0);
+  return !(*pte & PTE_W);
+}
+
+void read_only_page_fault()
+{
+  uint va = rcr2();
+  pte_t *pte = walkpgdir(myproc()->pgdir, (void*)va, 0);
+  if((va >= KERNBASE) || (pte == 0) || !(*pte & PTE_P) || !(*pte & PTE_U)){
+    myproc()->killed = 1;
+    return;
+  }
+  // get the physical address from the  given page table entry
+  uint pa = PTE_ADDR(*pte);
+  // get the reference count of the current page
+  uint refCount = get_reference_count(pa);
+  char *mem;
+
+  // Current process is the first one that tries to write to this page
+  if (refCount > 1)
+  {
+
+    // allocate a new memory page for the process
+    if ((mem = kalloc()) == 0)
+    {
+      myproc()->killed = 1;
+      return;
+    }
+    // copy the contents from the original memory page pointed the virtual address
+    memmove(mem, (char *)P2V(pa), PGSIZE);
+    // point the given page table entry to the new page
+    *pte = V2P(mem) | PTE_P | PTE_U | PTE_W;
+
+    // Since the current process now doesn't point to original page,
+    // decrement the reference count by 1
+    decrement_reference_count(pa);
+  }
+  // Current process is the last one that tries to write to this page
+  // No need to allocate new page as all other process has their copies already
+  else if (refCount == 1)
+  {
+    // remove the read-only restriction on the trapping page
+    *pte |= PTE_W;
+  }
+  else
+  {
+    panic("pagefault reference count wrong\n");
+  }
+
+  //Flush TLB for process since page table entries changed
+  lcr3(V2P(myproc()->pgdir));
+}
+
 void handle_page_fault()
 {
   struct proc *p = myproc();
@@ -341,14 +397,14 @@ void handle_page_fault()
     }
     else
     {
-      struct page exile_ram = p->ram_arr[0];      //this will change in task 3
+      struct page exile_ram = p->ram_arr[0]; //this will change in task 3
       disk_to_ram(start_pfault_va, new_physical_adrr);
       memmove(new_physical_adrr, buffer, PGSIZE);
       int index = find_free_or_occupied_page(p, FREE, 0);
       if (index == -1)
         panic("swap_arr is occupied\n");
       cprintf("the index is:%d\n", exile_ram.virtual_adrr);
-      if((writeToSwapFile(p, (char *)exile_ram.virtual_adrr, index*PGSIZE, PGSIZE)) == -1)
+      if ((writeToSwapFile(p, (char *)exile_ram.virtual_adrr, index * PGSIZE, PGSIZE)) == -1)
         panic("cant write file\n");
       p->swap_arr[index].virtual_adrr = exile_ram.virtual_adrr;
       p->swap_arr[index].offset_in_swap_file = index * PGSIZE;
@@ -552,7 +608,6 @@ copyuvm(pde_t *pgdir, uint sz)
   pde_t *d;
   pte_t *pte;
   uint pa, i, flags;
-  char *mem;
 
   if ((d = setupkvm()) == 0)
     return 0;
@@ -564,30 +619,34 @@ copyuvm(pde_t *pgdir, uint sz)
       panic("copyuvm: page not present");
     if ((myproc()->pid > 2))
     {
-      if(*pte & PTE_PG){
-      pte = walkpgdir(d, (int *)i, 0);
-      *pte |= PTE_PG;
-      *pte &= ~PTE_P;
-      *pte &= PTE_FLAGS(*pte);
-      lcr3(V2P(myproc()->pgdir));
-      continue;
+      if (*pte & PTE_PG)
+      {
+        pte = walkpgdir(d, (int *)i, 0);
+        *pte |= PTE_PG;
+        *pte &= ~PTE_P;
+        *pte &= PTE_FLAGS(*pte);
+        lcr3(V2P(myproc()->pgdir));
+        continue;
       }
     }
+    *pte &= ~PTE_W; //make permission for parent_page to be read only
     pa = PTE_ADDR(*pte);
     flags = PTE_FLAGS(*pte);
-    if ((mem = kalloc()) == 0)
-      goto bad;
-    memmove(mem, (char *)P2V(pa), PGSIZE);
-    if (mappages(d, (void *)i, PGSIZE, V2P(mem), flags) < 0)
+    // if ((mem = kalloc()) == 0)
+    //   goto bad;
+    // memmove(mem, (char *)P2V(pa), PGSIZE);
+    if (mappages(d, (void *)i, PGSIZE, pa, flags) < 0)
     {
-      kfree(mem);
       goto bad;
     }
+    increment_reference_count(pa);
   }
+  lcr3(V2P(pgdir)); // Flush TLB for original process
   return d;
 
 bad:
   freevm(d);
+  lcr3(V2P(pgdir));
   return 0;
 }
 
