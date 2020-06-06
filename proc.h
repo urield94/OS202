@@ -6,6 +6,7 @@ struct page{
   uint virtual_adrr;
   pde_t* pagedir;
   uint offset_in_swap_file;
+  uint ctime;
 };
 
 // Per-CPU state

@@ -116,7 +116,7 @@ found:
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
 
-  if (p->pid > 2)
+  if (p->pid > 2 && !is_none_paging_policy())
   {
     createSwapFile(p);
   }
@@ -207,7 +207,7 @@ int fork(void)
     np->state = UNUSED;
     return -1;
   }
-  if (curproc->pid > 2)
+  if (curproc->pid > 2 && !is_none_paging_policy())
   {
     for (int i = 0; i < 16; i++)
     {
@@ -257,21 +257,20 @@ return pid;
 
 void removePages(struct proc *p)
 {
-  if (p->pid > 2)
-  {
     for (int i = 0; i < 16; i++)
     {
       p->ram_arr[i].occupied = 0;
       p->ram_arr[i].virtual_adrr = 0;
       p->ram_arr[i].offset_in_swap_file = 0;
       p->ram_arr[i].pagedir = 0;
+      p->ram_arr[i].ctime = 0;
 
       p->swap_arr[i].occupied = 0;
       p->swap_arr[i].virtual_adrr = 0;
       p->swap_arr[i].offset_in_swap_file = 0;
       p->swap_arr[i].pagedir = 0;
+      p->swap_arr[i].ctime = 0;
     }
-  }
 }
 
 // Exit the current process.  Does not return.
@@ -304,7 +303,7 @@ void exit(void)
   curproc->cwd = 0;
 
   /**************1.3****************/
-  if (curproc->pid > 2)
+  if (curproc->pid > 2 && !is_none_paging_policy())
   {
     removeSwapFile(curproc);
   }
@@ -361,7 +360,7 @@ int wait(void)
         p->parent = 0;
         p->name[0] = 0;
         /*****************Task 1.3*************/
-        if (p->pid > 2)
+        if (p->pid > 2 && !is_none_paging_policy())
         {
           removePages(p);
         }

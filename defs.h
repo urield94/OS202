@@ -209,6 +209,8 @@ void            handle_page_fault(void);
 int             isValidPage(pde_t*);
 int             isReadOnlyPage(pde_t*);
 void            swap(struct proc*, pde_t*, uint);
-
+int             second_chance_fifo(struct proc *);
+int             is_none_paging_policy(void);
+int             find_ram_by_policy(struct proc *);
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))

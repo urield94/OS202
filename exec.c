@@ -20,7 +20,9 @@ int exec(char *path, char **argv)
 
   struct page swap_backup[MAX_PYSC_PAGES];
   struct page ram_backup[MAX_PYSC_PAGES];
-  if (curproc->pid > 2)
+
+  
+  if (curproc->pid > 2 && !is_none_paging_policy())
   {
     for (int i = 0; i < MAX_PYSC_PAGES; i++)
     {
@@ -31,11 +33,14 @@ int exec(char *path, char **argv)
       curproc->swap_arr[i].offset_in_swap_file = -1;
       curproc->swap_arr[i].pagedir = 0;
       curproc->swap_arr[i].virtual_adrr = 0;
+      curproc->swap_arr[i].ctime = 0;
 
       curproc->ram_arr[i].occupied = 0;
       curproc->ram_arr[i].offset_in_swap_file = -1;
       curproc->ram_arr[i].pagedir = 0;
       curproc->ram_arr[i].virtual_adrr = 0;
+      curproc->ram_arr[i].ctime = 0;
+
     }
   }
 
@@ -116,24 +121,6 @@ int exec(char *path, char **argv)
       last = s + 1;
   safestrcpy(curproc->name, last, sizeof(curproc->name));
 
-  // if(curproc->pid > 2){ // }
-  //     if(curproc->ram_arr[i].occupied){
-  //     curproc->ram_arr[i].pagedir = pgdir;
-  //     }
-  //     if(curproc->swap_arr[i].occupied){
-  //     curproc->swap_arr[i].pagedir = pgdir;
-  //     }
-  //   }
-  //   removeSwapFile(curproc);
-  //   createSwapFile(curproc);
-  // }
-
-  // if (curproc->pid > 2)
-  // {
-  //   removeSwapFile(curproc);
-  //   createSwapFile(curproc);
-  // }
-
   // Commit to the user image.
   oldpgdir = curproc->pgdir;
   curproc->pgdir = pgdir;
@@ -148,7 +135,7 @@ bad:
   if (pgdir)
   {
     freevm(pgdir);
-    if (curproc->pid > 2)
+    if (curproc->pid > 2 && !is_none_paging_policy())
     {
       for (int i = 0; i < MAX_PYSC_PAGES; i++)
       {
