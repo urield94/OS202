@@ -257,20 +257,21 @@ return pid;
 
 void removePages(struct proc *p)
 {
+  if (p->pid > 2 && !is_none_paging_policy())
+  {
     for (int i = 0; i < 16; i++)
     {
       p->ram_arr[i].occupied = 0;
       p->ram_arr[i].virtual_adrr = 0;
       p->ram_arr[i].offset_in_swap_file = 0;
       p->ram_arr[i].pagedir = 0;
-      p->ram_arr[i].ctime = 0;
 
       p->swap_arr[i].occupied = 0;
       p->swap_arr[i].virtual_adrr = 0;
       p->swap_arr[i].offset_in_swap_file = 0;
       p->swap_arr[i].pagedir = 0;
-      p->swap_arr[i].ctime = 0;
     }
+  }
 }
 
 // Exit the current process.  Does not return.
@@ -419,7 +420,9 @@ void scheduler(void)
 
       swtch(&(c->scheduler), p->context);
       switchkvm();
-
+      #if (defined(NFUA) || defined(LAPA))
+      update_pages_age_counter();
+      #endif
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       c->proc = 0;

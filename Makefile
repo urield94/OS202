@@ -75,7 +75,6 @@ ifndef SELECTION
 	SELECTION := SCFIFO
 endif
 
-
 CC = $(TOOLPREFIX)gcc
 AS = $(TOOLPREFIX)gas
 LD = $(TOOLPREFIX)ld

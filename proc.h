@@ -6,7 +6,7 @@ struct page{
   uint virtual_adrr;
   pde_t* pagedir;
   uint offset_in_swap_file;
-  uint ctime;
+  uint age_count;
 };
 
 // Per-CPU state
@@ -66,6 +66,7 @@ struct proc {
   struct page swap_arr[MAX_PYSC_PAGES];
   int ram_counter;            //Ram_arr counter of occupied cells
   int swap_counter;           //Swap_arr counter of occupied cells
+
 };
 
 // Process memory is laid out contiguously, low addresses first:

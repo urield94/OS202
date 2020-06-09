@@ -224,6 +224,207 @@ int loaduvm(pde_t *pgdir, char *addr, struct inode *ip, uint offset, uint sz)
 
 /**************helper functions to find pages**************/
 
+int second_chance_fifo()
+{
+  struct proc *curproc = myproc();
+  int index = -1;
+  int i;
+  struct page temp[MAX_PYSC_PAGES];
+
+  for (i = 0; i < MAX_PYSC_PAGES; i++)
+    temp[i].occupied = 0;
+
+  int temp_index = 0;
+  for (i = 0; (i < MAX_PYSC_PAGES) && (index == -1); i++)
+  {
+    uint temp_v_addr = curproc->ram_arr[i].virtual_adrr;
+    pde_t *pte = walkpgdir(curproc->pgdir, (char *)temp_v_addr, 0);
+    if (*pte & PTE_A)
+    {
+      *pte &= ~PTE_A;
+      temp[temp_index] = curproc->ram_arr[i];
+      temp_index++;
+    }
+    else
+    {
+      index = i;
+      break;
+    }
+  }
+
+  if (index == -1)
+  {
+    index = 0;
+    if (curproc->ram_arr[i].occupied == 1)
+    {
+      while (index < MAX_PYSC_PAGES - 1)
+      {
+        curproc->ram_arr[index] = curproc->ram_arr[index + 1];
+        index++;
+      }
+      curproc->ram_arr[MAX_PYSC_PAGES - 1].occupied = 0;
+    }
+    else
+      panic("error in removing scfifo!");
+    return index;
+  }
+
+  i++;
+  int new_index = 0;
+  while ((i < MAX_PYSC_PAGES) && (curproc->ram_arr[i].occupied == 1))
+  {
+    curproc->ram_arr[new_index] = curproc->ram_arr[i];
+    i++;
+    new_index++;
+  }
+
+  i = 0;
+  while (new_index < MAX_PYSC_PAGES)
+  {
+    curproc->ram_arr[new_index] = temp[i];
+    i++;
+    new_index++;
+  }
+
+  return MAX_PYSC_PAGES - 1;
+}
+
+int not_frequently_used()
+{
+  struct proc *curproc = myproc();
+  int i;
+  int min_index = 0;
+  for (i = 1; i < MAX_PYSC_PAGES; i++)
+  {
+    if (curproc->ram_arr[i].age_count < curproc->ram_arr[min_index].age_count)
+      min_index = i;
+  }
+
+  int j = min_index;
+  while (j < MAX_PYSC_PAGES - 1)
+  {
+    curproc->ram_arr[j] = curproc->ram_arr[j + 1];
+    j++;
+  }
+  curproc->ram_arr[MAX_PYSC_PAGES - 1].occupied = 0;
+  return MAX_PYSC_PAGES - 1;
+}
+
+int least_accessed_page()
+{
+  struct proc *curproc = myproc();
+  int i;
+  int min_i = -1;
+  int min_age = 0xFFFFFFFF;
+  int min_count = 33;
+  for (i = 0; i < MAX_PYSC_PAGES; i++)
+  {
+    int curr_age = curproc->ram_arr[i].age_count;
+    int curr_count = 0;
+    for (int j = 0; j < 32; j++)
+    {
+      if ((1 << j) & curr_age)
+        curr_count++;
+    }
+    if (curr_count < min_count)
+    {
+      min_i = i;
+      min_age = curr_age;
+      min_count = curr_count;
+    }
+    else if (curr_count == min_count && curr_age < min_age)
+    {
+      min_i = i;
+      min_age = curr_age;
+    }
+  }
+
+  if (min_i == -1)
+    panic("LAPA error");
+
+  while (min_i < MAX_PYSC_PAGES - 1)
+  {
+    curproc->ram_arr[min_i] = curproc->ram_arr[min_i + 1];
+    min_i++;
+  }
+  curproc->ram_arr[MAX_PYSC_PAGES - 1].occupied = 0;
+  return MAX_PYSC_PAGES - 1;
+}
+
+int advancing_queue(){
+  struct proc *curproc = myproc();
+  int i = 0;
+  while (i < MAX_PYSC_PAGES - 1)
+  {
+    curproc->ram_arr[i] = curproc->ram_arr[i + 1];
+    i++;
+  }
+  curproc->ram_arr[MAX_PYSC_PAGES - 1].occupied = 0;  
+  return MAX_PYSC_PAGES - 1;
+}
+
+int is_none_paging_policy()
+{
+#ifdef NONE
+  return 1;
+#endif
+  return 0;
+}
+
+int find_ram_by_policy()
+{
+#ifdef SCFIFO
+  return second_chance_fifo();
+#endif
+#ifdef NFUA
+  return not_frequently_used();
+#endif
+#ifdef LAPA
+  return least_accessed_page();
+#endif
+#ifdef AQ
+  cprintf("AQ - Not implemented yet");
+#endif
+  return -1;
+}
+
+void update_pages_age_counter()
+{
+  struct proc *curproc = myproc();
+  int i;
+
+  for (i = 0; i < MAX_PYSC_PAGES; i++)
+  {
+    if (curproc->ram_arr[i].occupied)
+    {
+      curproc->ram_arr[i].age_count = curproc->ram_arr[i].age_count >> 1;
+      pte_t *pte = walkpgdir(curproc->pgdir, (void *)curproc->ram_arr[i].virtual_adrr, 0);
+      if (*pte & PTE_A)
+      {
+        curproc->ram_arr[i].age_count = curproc->ram_arr[i].age_count | 0x80000000; // 1 with 31 0
+        *pte &= ~PTE_A;
+      }
+    }
+  }
+}
+
+void sort_advancing_queue(){
+struct proc *curproc = myproc();
+  int i;
+  for(i = MAX_PYSC_PAGES-1; i < 0 ; i--) {
+    if (!curproc->ram_arr[i].occupied)
+      continue;
+    int curr_page_idx = i;
+    int prev_page_idx = i-1;
+    pte_t* pte_curr = walkpgdir(curproc->pgdir, (void*)curproc->ram_arr[curr_page_idx].virtual_adrr, 0);
+    pte_t* pte_pre = walkpgdir(curproc->pgdir, (void*)curproc->ram_arr[prev_page_idx].virtual_adrr, 0);
+    if(((*pte_pre & PTE_A) != 0) && ((*pte_curr & PTE_A) == 0)){
+      curproc->ram_arr[i] = curproc->ram_arr[prev_page_idx];
+      curproc->ram_arr[i-1] = curproc->ram_arr[curr_page_idx];
+    }
+  }
+}
+
 int find_free_or_occupied_page(struct proc *p, int condition, int swap_or_ram)
 {
   if (condition == 1)
@@ -284,29 +485,31 @@ int get_pte_flags(int va, pde_t *pgdir)
 void disk_to_ram(uint start_pfault_va, char *ka)
 {
   struct proc *p = myproc();
-  int perm = get_pte_flags(start_pfault_va, p->pgdir);
-
-  //map all virtual addresses to the apropriate physical ones
-  mappages(p->pgdir, (void *)start_pfault_va, PGSIZE, V2P(ka), perm);
-
-  pde_t *pfault_pte = walkpgdir(p->pgdir, (void *)start_pfault_va, 0);
-  *pfault_pte |= PTE_P | PTE_W | PTE_U; //declare that page is present, writable and owned by the user
-  *pfault_pte &= ~PTE_PG;               //turn on paged_out flag
-  lcr3(V2P(p->pgdir));                  //refresh TLB
-
-  for (int i = 0; i < 16; i++)
+  if (p->pid > 2 && !is_none_paging_policy())
   {
-    if (p->swap_arr[i].virtual_adrr == start_pfault_va)
+    int perm = get_pte_flags(start_pfault_va, p->pgdir);
+
+    //map all virtual addresses to the apropriate physical ones
+    mappages(p->pgdir, (void *)start_pfault_va, PGSIZE, V2P(ka), perm);
+
+    pde_t *pfault_pte = walkpgdir(p->pgdir, (void *)start_pfault_va, 0);
+    *pfault_pte |= PTE_P | PTE_W | PTE_U; //declare that page is present, writable and owned by the user
+    *pfault_pte &= ~PTE_PG;               //turn on paged_out flag
+    lcr3(V2P(p->pgdir));                  //refresh TLB
+
+    for (int i = 0; i < 16; i++)
     {
-      readFromSwapFile(p, buffer, i * PGSIZE, PGSIZE);
-      int ram_index = find_free_or_occupied_page(p, FREE, 1);
-      p->ram_arr[ram_index].offset_in_swap_file = p->swap_arr[i].offset_in_swap_file;
-      p->ram_arr[ram_index].virtual_adrr = p->swap_arr[i].virtual_adrr;
-      p->ram_arr[ram_index].pagedir = p->swap_arr[i].pagedir;
-      p->ram_arr[ram_index].occupied = 1;
-      p->ram_arr[ram_index].ctime =  p->swap_arr[i].ctime;
-      p->swap_arr[i].occupied = 0;
-      break;
+      if (p->swap_arr[i].virtual_adrr == start_pfault_va)
+      {
+        readFromSwapFile(p, buffer, i * PGSIZE, PGSIZE);
+        int ram_index = find_free_or_occupied_page(p, FREE, 1);
+        p->ram_arr[ram_index].offset_in_swap_file = p->swap_arr[i].offset_in_swap_file;
+        p->ram_arr[ram_index].virtual_adrr = p->swap_arr[i].virtual_adrr;
+        p->ram_arr[ram_index].pagedir = p->swap_arr[i].pagedir;
+        p->ram_arr[ram_index].occupied = 1;
+        p->swap_arr[i].occupied = 0;
+        break;
+      }
     }
   }
 }
@@ -328,195 +531,146 @@ int isReadOnlyPage(pde_t *pgdir)
 void read_only_page_fault()
 {
   uint va = rcr2();
-  pte_t *pte = walkpgdir(myproc()->pgdir, (void*)va, 0);
-  if((va >= KERNBASE) || (pte == 0) || !(*pte & PTE_P) || !(*pte & PTE_U)){
+  pte_t *pte = walkpgdir(myproc()->pgdir, (void *)va, 0);
+  if ((va >= KERNBASE) || (pte == 0) || !(*pte & PTE_P) || !(*pte & PTE_U))
+  {
     myproc()->killed = 1;
     return;
   }
-
-  uint pa = PTE_ADDR(*pte);                   // Get physical address of shared memory
-  uint refCount = get_reference_count(pa);    // Get the number of proccesses that points to this shared memory
+  // get the physical address from the  given page table entry
+  uint pa = PTE_ADDR(*pte);
+  // get the reference count of the current page
+  uint refCount = get_reference_count(pa);
   char *mem;
 
-  if (refCount > 1) //----------------------- Case 1 - Make copy of the page
+  // Current process is the first one that tries to write to this page
+  if (refCount > 1)
   {
-    if ((mem = kalloc()) == 0)               // Allocate new page for the proccess
+
+    // allocate a new memory page for the process
+    if ((mem = kalloc()) == 0)
     {
       myproc()->killed = 1;
       return;
     }
+    // copy the contents from the original memory page pointed the virtual address
+    memmove(mem, (char *)P2V(pa), PGSIZE);
+    // point the given page table entry to the new page
+    *pte = V2P(mem) | PTE_P | PTE_U | PTE_W;
 
-    memmove(mem, (char *)P2V(pa), PGSIZE);   // Copy the page to the new allocated page
-    *pte = V2P(mem) | PTE_P | PTE_U | PTE_W; // Point the given pte to the new page, and set the pte premmisions
-
-    decrement_reference_count(pa);           // The process is no longer point to shared memory, so we decrement the number of watchers at the shared memory.
+    // Since the current process now doesn't point to original page,
+    // decrement the reference count by 1
+    decrement_reference_count(pa);
   }
-
-  else if (refCount == 1) //----------------- Case 2 - We have all of the memory copies
+  // Current process is the last one that tries to write to this page
+  // No need to allocate new page as all other process has their copies already
+  else if (refCount == 1)
   {
-
-    *pte |= PTE_W;                           // Make the page writable
+    // remove the read-only restriction on the trapping page
+    *pte |= PTE_W;
   }
   else
   {
     panic("pagefault reference count wrong\n");
   }
-  lcr3(V2P(myproc()->pgdir));                //Flush TLB
+
+  //Flush TLB for process since page table entries changed
+  lcr3(V2P(myproc()->pgdir));
 }
 
 void handle_page_fault()
 {
   struct proc *p = myproc();
-
-  uint start_pfault_va = PGROUNDDOWN(rcr2());
-
-  /*allocate physical address and reset it*/
-  char *new_physical_adrr = kalloc();
-  if (new_physical_adrr == 0)
-    panic("allocuvm out of memory\n");
-  memset(new_physical_adrr, 0, PGSIZE);
-
-  int ram_index = find_free_or_occupied_page(p, FREE, 1);
-  if (ram_index >= 0)
+  if (p->pid > 2 && !is_none_paging_policy())
   {
-    disk_to_ram(start_pfault_va, new_physical_adrr);
-    memmove((void *)start_pfault_va, buffer, PGSIZE);
-  }
-  else
-  {
-    struct page exile_ram = p->ram_arr[find_ram_by_policy(p)]; 
-    disk_to_ram(start_pfault_va, new_physical_adrr);
-    memmove(new_physical_adrr, buffer, PGSIZE);
-    int index = find_free_or_occupied_page(p, FREE, 0);
-    if (index == -1)
-      panic("swap_arr is occupied\n");
-    if ((writeToSwapFile(p, (char *)exile_ram.virtual_adrr, index * PGSIZE, PGSIZE)) == -1)
-      panic("cant write file\n");
-    p->swap_arr[index].virtual_adrr = exile_ram.virtual_adrr;
-    p->swap_arr[index].offset_in_swap_file = index * PGSIZE;
-    p->swap_arr[index].pagedir = exile_ram.pagedir;
-    p->swap_arr[index].occupied = 1;
-    p->swap_arr[index].occupied = exile_ram.ctime;
+    uint start_pfault_va = PGROUNDDOWN(rcr2());
 
-    pde_t *helper = walkpgdir(exile_ram.pagedir, (int *)exile_ram.virtual_adrr, 0);
-    uint ramPa = PTE_ADDR(*helper);
+    /*allocate physical address and reset it*/
+    char *new_physical_adrr = kalloc();
+    if (new_physical_adrr == 0)
+      panic("allocuvm out of memory\n");
+    memset(new_physical_adrr, 0, PGSIZE);
 
-    *helper |= PTE_PG;
-    *helper &= ~PTE_P;
-    *helper &= PTE_FLAGS(*helper);
-    lcr3(V2P(p->pgdir));
-    kfree((char *)P2V(ramPa));
+    int ram_index = find_free_or_occupied_page(p, FREE, 1);
+    if (ram_index >= 0)
+    {
+      disk_to_ram(start_pfault_va, new_physical_adrr);
+      memmove((void *)start_pfault_va, buffer, PGSIZE);
+    }
+    else
+    {
+      struct page exile_ram = p->ram_arr[find_ram_by_policy()]; //this will change in task 3
+      disk_to_ram(start_pfault_va, new_physical_adrr);
+      memmove(new_physical_adrr, buffer, PGSIZE);
+      int index = find_free_or_occupied_page(p, FREE, 0);
+      if (index == -1)
+        panic("swap_arr is occupied\n");
+      cprintf("the index is:%d\n", exile_ram.virtual_adrr);
+      if ((writeToSwapFile(p, (char *)exile_ram.virtual_adrr, index * PGSIZE, PGSIZE)) == -1)
+        panic("cant write file\n");
+      p->swap_arr[index].virtual_adrr = exile_ram.virtual_adrr;
+      p->swap_arr[index].offset_in_swap_file = index * PGSIZE;
+      p->swap_arr[index].pagedir = exile_ram.pagedir;
+      p->swap_arr[index].occupied = 1;
+
+      pde_t *helper = walkpgdir(exile_ram.pagedir, (int *)exile_ram.virtual_adrr, 0);
+      uint ramPa = PTE_ADDR(*helper);
+
+      *helper |= PTE_PG;
+      *helper &= ~PTE_P;
+      *helper &= PTE_FLAGS(*helper);
+      lcr3(V2P(p->pgdir));
+      kfree((char *)P2V(ramPa));
+    }
   }
 }
 
 /**********************************************************/
-int second_chance_fifo(struct proc *p)
-{
-  // First step - Sort the ram array according to create time
-  for (int i = 0; i < MAX_PYSC_PAGES - 1; i++)
-  {
-    for (int j = 0; j < MAX_PYSC_PAGES - i - 1; j++)
-    {
-      if (p->ram_arr[j].ctime > p->ram_arr[j + 1].ctime)
-      {
-        struct page tmp = *(&(p->ram_arr[j]));
-        *(&(p->ram_arr[j])) = *(&(p->ram_arr[j + 1]));
-        *(&(p->ram_arr[j + 1])) = tmp;
-      }
-    }
-  }
 
-  // Second step -
-  pte_t *pte;
-  int index = 0;
-  while (1)
-  {
-    if (p->ram_arr[index].occupied)
-    {
-      pte = walkpgdir(p->pgdir, (const void *)p->ram_arr[index].virtual_adrr, 0);
-      if (!(*pte & PTE_A))
-      {
-        for (int i = 0; i < MAX_PYSC_PAGES; i++)
-        {
-          if (p->ram_arr[i].occupied && p->ram_arr[i].virtual_adrr == p->ram_arr[index].virtual_adrr)
-            return i;
-        }
-        return -1;
-      }
-      *pte &= ~PTE_A;
-      lcr3(V2P(myproc()->pgdir));
-    }
-    index = (index + 1) % MAX_PYSC_PAGES;
-  }
-}
-
-int is_none_paging_policy()
-{
-#ifdef NONE
-  return 1;
-#endif
-  return 0;
-}
-
-int find_ram_by_policy(struct proc *p)
-{
-#ifdef SCFIFO
-  return second_chance_fifo(p);
-#endif
-#ifdef NFUA
-  cprintf("NFUA - Not implemented yet");
-#endif
-#ifdef LAPA
-  cprintf("LAPA - Not implemented yet");
-#endif
-#ifdef AQ
-  cprintf("AQ - Not implemented yet");
-#endif
-  return -1;
-}
 /****************swap function - Task 1.2******************/
 
 void swap(struct proc *p, pde_t *pagedir, uint mem)
 {
-  /*find avaiable and occupied spaces in ram_arr and swap_arr */
-  // int index_ram = find_free_or_occupied_page(p, OCCUPIED, 1);
-  int index_ram = find_ram_by_policy(p);
-  if (index_ram == -1)
-    panic("no occupied cell in ram_arr\n");
-  int index_swap = find_free_or_occupied_page(p, FREE, 0);
-  if (index_swap == -1)
-    panic("swap_arr is occupied\n");
-
-  /*write to swapFile and update swap_arr*/
-
-  if ((writeToSwapFile(p, (char *)p->ram_arr[index_ram].virtual_adrr, index_swap * PGSIZE, PGSIZE)) == -1)
+  if (p->pid > 2 && !is_none_paging_policy())
   {
-    panic("wrtie to swapFile failed..\n");
+    /*find avaiable and occupied spaces in ram_arr and swap_arr */
+
+    int index_ram = find_ram_by_policy();
+    if (index_ram == -1)
+      panic("no occupied cell in ram_arr\n");
+    int index_swap = find_free_or_occupied_page(p, FREE, 0);
+    if (index_swap == -1)
+      panic("swap_arr is occupied\n");
+
+    /*write to swapFile and update swap_arr*/
+
+    if ((writeToSwapFile(p, (char *)p->ram_arr[index_ram].virtual_adrr, index_swap * PGSIZE, PGSIZE)) == -1)
+    {
+      panic("wrtie to swapFile failed..\n");
+    }
+    p->swap_arr[index_swap].virtual_adrr = p->ram_arr[index_ram].virtual_adrr;
+    p->swap_arr[index_swap].offset_in_swap_file = index_swap * PGSIZE;
+    p->swap_arr[index_swap].pagedir = pagedir;
+    p->swap_arr[index_swap].occupied = 1;
+
+    /*clear physical address of ram_arr[index] PTE*/
+
+    pte_t *pte = walkpgdir(pagedir, (int *)p->ram_arr[index_ram].virtual_adrr, 0);
+    uint pa = PTE_ADDR(*pte);
+    kfree(P2V(pa));
+
+    p->ram_arr[index_ram].occupied = 0;
+
+    *pte |= PTE_PG;
+    *pte &= ~PTE_P;
+    *pte &= PTE_FLAGS(*pte); //clear flags for pte
+    lcr3(V2P(p->pgdir));     //flush the TLB
+
+    p->ram_arr[index_ram].virtual_adrr = mem;
+    p->ram_arr[index_ram].pagedir = pagedir;
+    p->ram_arr[index_ram].occupied = 1;
+    p->ram_arr[index_ram].offset_in_swap_file = -1;
   }
-  p->swap_arr[index_swap].virtual_adrr = mem;
-  p->swap_arr[index_swap].offset_in_swap_file = index_swap * PGSIZE;
-  p->swap_arr[index_swap].pagedir = pagedir;
-  p->swap_arr[index_swap].occupied = 1;
-  p->swap_arr[index_swap].ctime = ticks;
-
-  /*clear physical address of ram_arr[index] PTE*/
-
-  pte_t *pte = walkpgdir(pagedir, (int *)p->ram_arr[index_ram].virtual_adrr, 0);
-  uint pa = PTE_ADDR(*pte);
-  kfree(P2V(pa));
-
-  p->ram_arr[index_ram].occupied = 0;
-
-  *pte |= PTE_PG;
-  *pte &= ~PTE_P;
-  *pte &= PTE_FLAGS(*pte); //clear flags for pte
-  lcr3(V2P(p->pgdir));     //flush the TLB
-
-  p->ram_arr[index_ram].virtual_adrr = mem;
-  p->ram_arr[index_ram].pagedir = pagedir;
-  p->ram_arr[index_ram].occupied = 1;
-  p->ram_arr[index_ram].offset_in_swap_file = -1;
-  p->ram_arr[index_ram].ctime = ticks;
 }
 
 /***********************************************************/
@@ -565,7 +719,14 @@ int allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
         p->ram_arr[i].offset_in_swap_file = -1;
         p->ram_arr[i].pagedir = pgdir;
         p->ram_arr[i].virtual_adrr = a;
-        p->ram_arr[i].ctime = ticks;
+
+        #ifdef NFUA
+                myproc()->ram_arr[i].age_count = 0;
+        #endif
+
+        #ifdef LAPA
+                myproc()->ram_arr[i].age_count = 0xFFFFFFFF;
+        #endif
       }
       else
       { //case 2: no space in ram, so we swap
@@ -608,6 +769,14 @@ int deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
           if (myproc()->ram_arr[i].virtual_adrr == a && (myproc()->ram_arr[i].pagedir == pgdir))
           {
             myproc()->ram_arr[i].occupied = 0;
+
+#ifdef NFUA
+            myproc()->ram_arr[i].age_count = 0;
+#endif
+
+#ifdef LAPA
+            myproc()->ram_arr[i].age_count = 0xFFFFFFFF;
+#endif
           }
         }
       }
@@ -657,7 +826,6 @@ copyuvm(pde_t *pgdir, uint sz)
   pde_t *d;
   pte_t *pte;
   uint pa, i, flags;
-  char *mem;
 
   if ((d = setupkvm()) == 0)
     return 0;
@@ -667,10 +835,7 @@ copyuvm(pde_t *pgdir, uint sz)
       panic("(copyuvm: pte should exist");
     if (!(*pte & PTE_P))
       panic("copyuvm: page not present");
-    pa = PTE_ADDR(*pte);
-    flags = PTE_FLAGS(*pte);
-
-    if ((myproc()->pid > 2 && !is_none_paging_policy()))
+    if ((myproc()->pid > 2) && !is_none_paging_policy())
     {
       if (*pte & PTE_PG)
       {
@@ -681,25 +846,18 @@ copyuvm(pde_t *pgdir, uint sz)
         lcr3(V2P(myproc()->pgdir));
         continue;
       }
-      *pte &= ~PTE_W; //make permission for parent_page to be read only
-
-      if (mappages(d, (void *)i, PGSIZE, pa, flags) < 0)
-      {
-        goto bad;
-      }
-      increment_reference_count(pa);
     }
-    else
+    *pte &= ~PTE_W; //make permission for parent_page to be read only
+    pa = PTE_ADDR(*pte);
+    flags = PTE_FLAGS(*pte);
+    // if ((mem = kalloc()) == 0)
+    //   goto bad;
+    // memmove(mem, (char *)P2V(pa), PGSIZE);
+    if (mappages(d, (void *)i, PGSIZE, pa, flags) < 0)
     {
-      if ((mem = kalloc()) == 0)
-        goto bad;
-      memmove(mem, (char *)P2V(pa), PGSIZE);
-      if (mappages(d, (void *)i, PGSIZE, V2P(mem), flags) < 0)
-      {
-        kfree(mem); 
-        goto bad;
-      }
+      goto bad;
     }
+    increment_reference_count(pa);
   }
   lcr3(V2P(pgdir)); // Flush TLB for original process
   return d;
