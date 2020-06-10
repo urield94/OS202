@@ -15,7 +15,7 @@ struct
 
 static char buffer[PGSIZE];
 static struct proc *initproc;
-
+int init_frame_size;
 int nextpid = 1;
 extern void forkret(void);
 extern void trapret(void);
@@ -137,7 +137,7 @@ void userinit(void)
 {
   struct proc *p;
   extern char _binary_initcode_start[], _binary_initcode_size[];
-
+  init_frame_size = get_free_frames();
   p = allocproc();
 
   initproc = p;
@@ -343,9 +343,7 @@ void exit(void)
   // Jump into the scheduler, never to return.
   curproc->state = ZOMBIE;
   #ifdef VERBOSE_PRINT_TRUE
-  cprintf("pid: %d, state=ZOMBIE, total_allocated_pages: %d, current_paged_out: %d, total_page_faults: %d,  total_paged_out: %d, name: %s\n",
-          curproc->pid,  curproc->total_allocated_pages,  curproc->current_paged_out,
-              curproc->total_page_faults, curproc->total_paged_out, curproc->name);
+  procdump();
   #endif
 
   sched();
@@ -621,7 +619,7 @@ void procdump(void)
     else
       state = "???";
       
-    cprintf("pid: %d, state: %s, total_allocated_pages: %d, current_paged_out: %d, page_faults: %d, total_paged_out: %d, name: %s",
+    cprintf("pid: %d, state: %s, total_allocated_pages: %d, current_paged_out: %d, page_faults: %d, total_paged_out: %d, name: %s\n",
              p->pid, state, p->total_allocated_pages, p->current_paged_out, p->total_page_faults, p->total_paged_out, p->name);
     if (p->state == SLEEPING)
     {
@@ -631,4 +629,6 @@ void procdump(void)
     }
     cprintf("\n");
   }
+  int free_frames = (gnofp());
+  cprintf("%d / %d free frames in the system\n", free_frames, init_frame_size);
 }

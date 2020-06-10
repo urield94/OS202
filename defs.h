@@ -79,6 +79,11 @@ char*           kalloc(void);
 void            kfree(char*);
 void            kinit1(void*, void*);
 void            kinit2(void*, void*);
+int 			gnofp(void);
+void            increment_reference_count(uint);
+void            decrement_reference_count(uint);
+uint            get_reference_count(uint);
+int             get_free_frames(void);
 
 // kbd.c
 void            kbdintr(void);
@@ -132,10 +137,6 @@ int             wait(void);
 void            wakeup(void*);
 void            yield(void);
 void            removePages(struct proc*);
-int 			gnofp(void);
-void            increment_reference_count(uint);
-void            decrement_reference_count(uint);
-uint            get_reference_count(uint);
 
 
 // swtch.S

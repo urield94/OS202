@@ -154,5 +154,18 @@ uint get_reference_count(uint pa)
   return count;
 }
 
+int get_free_frames(void){
+  struct run *list;
+  int count = 0;
+  acquire(&kmem.lock);
+  list = kmem.freelist;
+  while(list){
+    list = list->next;
+    count++;
+  }
+  release(&kmem.lock);
+  return count;
+}
+
 
 
