@@ -110,6 +110,13 @@ found:
   // which returns to trapret.
   sp -= 4;
   *(uint *)sp = (uint)trapret;
+  
+  /******************Task-4*******************/
+  p->total_allocated_pages = 0;
+  p->total_page_faults = 0;
+  p->total_paged_out = 0;
+  p->current_paged_out = 0;
+  /*******************************************/
 
   sp -= sizeof *p->context;
   p->context = (struct context *)sp;
@@ -176,6 +183,7 @@ int growproc(int n)
   }
   else if (n < 0)
   {
+    curproc->total_allocated_pages = curproc->total_allocated_pages + (PGROUNDDOWN(n)/PGSIZE);
     if ((sz = deallocuvm(curproc->pgdir, sz, sz + n)) == 0)
       return -1;
   }
@@ -207,6 +215,12 @@ int fork(void)
     np->state = UNUSED;
     return -1;
   }
+
+  np->current_paged_out = curproc->current_paged_out;
+  np->total_paged_out = 0;
+  np->total_page_faults = 0;
+  np->total_allocated_pages = curproc->total_allocated_pages;
+
   if (curproc->pid > 2 && !is_none_paging_policy())
   {
     for (int i = 0; i < 16; i++)
@@ -328,6 +342,12 @@ void exit(void)
 
   // Jump into the scheduler, never to return.
   curproc->state = ZOMBIE;
+  #ifdef VERBOSE_PRINT_TRUE
+  cprintf("pid: %d, state=ZOMBIE, total_allocated_pages: %d, current_paged_out: %d, total_page_faults: %d,  total_paged_out: %d, name: %s\n",
+          curproc->pid,  curproc->total_allocated_pages,  curproc->current_paged_out,
+              curproc->total_page_faults, curproc->total_paged_out, curproc->name);
+  #endif
+
   sched();
   panic("zombie exit");
 }
@@ -422,6 +442,9 @@ void scheduler(void)
       switchkvm();
       #if (defined(NFUA) || defined(LAPA))
       update_pages_age_counter();
+      #endif
+      #ifdef AQ
+        sort_advancing_queue();
       #endif
       // Process is done running for now.
       // It should have changed its p->state before coming back.
@@ -597,7 +620,9 @@ void procdump(void)
       state = states[p->state];
     else
       state = "???";
-    cprintf("%d %s %s", p->pid, state, p->name);
+      
+    cprintf("pid: %d, state: %s, total_allocated_pages: %d, current_paged_out: %d, page_faults: %d, total_paged_out: %d, name: %s",
+             p->pid, state, p->total_allocated_pages, p->current_paged_out, p->total_page_faults, p->total_paged_out, p->name);
     if (p->state == SLEEPING)
     {
       getcallerpcs((uint *)p->context->ebp + 2, pc);

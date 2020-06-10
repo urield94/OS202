@@ -20,6 +20,17 @@ int exec(char *path, char **argv)
 
   struct page swap_backup[MAX_PYSC_PAGES];
   struct page ram_backup[MAX_PYSC_PAGES];
+
+  int total_allocated_pages = curproc->total_allocated_pages;
+  int total_page_faults = curproc->total_page_faults;
+  int total_paged_out = curproc->total_paged_out;
+  int current_paged_out = curproc->current_paged_out;
+
+  curproc->total_allocated_pages = 0;
+  curproc->total_page_faults = 0;
+  curproc->total_paged_out = 0;
+  curproc->current_paged_out = 0;
+
   if (curproc->pid > 2 && !is_none_paging_policy())
   {
     for (int i = 0; i < MAX_PYSC_PAGES; i++)
@@ -130,6 +141,10 @@ bad:
   if (pgdir)
   {
     freevm(pgdir);
+    curproc->total_allocated_pages = total_allocated_pages;
+    curproc->total_page_faults = total_page_faults;
+    curproc->total_paged_out = total_paged_out;
+    curproc->current_paged_out = current_paged_out;
     if (curproc->pid > 2 && !is_none_paging_policy())
     {
       for (int i = 0; i < MAX_PYSC_PAGES; i++)

@@ -351,7 +351,8 @@ int least_accessed_page()
   return MAX_PYSC_PAGES - 1;
 }
 
-int advancing_queue(){
+int advancing_queue()
+{
   struct proc *curproc = myproc();
   int i = 0;
   while (i < MAX_PYSC_PAGES - 1)
@@ -359,7 +360,7 @@ int advancing_queue(){
     curproc->ram_arr[i] = curproc->ram_arr[i + 1];
     i++;
   }
-  curproc->ram_arr[MAX_PYSC_PAGES - 1].occupied = 0;  
+  curproc->ram_arr[MAX_PYSC_PAGES - 1].occupied = 0;
   return MAX_PYSC_PAGES - 1;
 }
 
@@ -383,7 +384,7 @@ int find_ram_by_policy()
   return least_accessed_page();
 #endif
 #ifdef AQ
-  cprintf("AQ - Not implemented yet");
+  return advancing_queue();
 #endif
   return -1;
 }
@@ -408,19 +409,23 @@ void update_pages_age_counter()
   }
 }
 
-void sort_advancing_queue(){
-struct proc *curproc = myproc();
+void sort_advancing_queue()
+{
+  struct proc *curproc = myproc();
   int i;
-  for(i = MAX_PYSC_PAGES-1; i < 0 ; i--) {
+  for (i = MAX_PYSC_PAGES - 1; i < 0; i--)
+  {
     if (!curproc->ram_arr[i].occupied)
       continue;
     int curr_page_idx = i;
-    int prev_page_idx = i-1;
-    pte_t* pte_curr = walkpgdir(curproc->pgdir, (void*)curproc->ram_arr[curr_page_idx].virtual_adrr, 0);
-    pte_t* pte_pre = walkpgdir(curproc->pgdir, (void*)curproc->ram_arr[prev_page_idx].virtual_adrr, 0);
-    if(((*pte_pre & PTE_A) != 0) && ((*pte_curr & PTE_A) == 0)){
+    int prev_page_idx = i - 1;
+    pte_t *pte_curr = walkpgdir(curproc->pgdir, (void *)curproc->ram_arr[curr_page_idx].virtual_adrr, 0);
+    pte_t *pte_pre = walkpgdir(curproc->pgdir, (void *)curproc->ram_arr[prev_page_idx].virtual_adrr, 0);
+    if (((*pte_pre & PTE_A) != 0) && ((*pte_curr & PTE_A) == 0))
+    {
       curproc->ram_arr[i] = curproc->ram_arr[prev_page_idx];
-      curproc->ram_arr[i-1] = curproc->ram_arr[curr_page_idx];
+      //trump array
+      curproc->ram_arr[i - 1] = curproc->ram_arr[curr_page_idx];
     }
   }
 }
@@ -576,6 +581,8 @@ void read_only_page_fault()
 
   //Flush TLB for process since page table entries changed
   lcr3(V2P(myproc()->pgdir));
+
+  //TODO: add the writable page to the ram_arr or swap_arr
 }
 
 void handle_page_fault()
@@ -584,7 +591,8 @@ void handle_page_fault()
   if (p->pid > 2 && !is_none_paging_policy())
   {
     uint start_pfault_va = PGROUNDDOWN(rcr2());
-
+    p->total_paged_out += 1;
+    p->current_paged_out += 1;
     /*allocate physical address and reset it*/
     char *new_physical_adrr = kalloc();
     if (new_physical_adrr == 0)
@@ -659,8 +667,10 @@ void swap(struct proc *p, pde_t *pagedir, uint mem)
     uint pa = PTE_ADDR(*pte);
     kfree(P2V(pa));
 
-    p->ram_arr[index_ram].occupied = 0;
+    p->total_paged_out += 1;
+    p->current_paged_out += 1;
 
+    p->ram_arr[index_ram].occupied = 0;
     *pte |= PTE_PG;
     *pte &= ~PTE_P;
     *pte &= PTE_FLAGS(*pte); //clear flags for pte
@@ -691,10 +701,6 @@ int allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
   a = PGROUNDUP(oldsz);
   for (; a < newsz; a += PGSIZE)
   {
-    if ((p->ram_counter + p->swap_counter) >= 32)
-    {
-      panic("Not Enough space for allocating more pages..\n");
-    }
     mem = kalloc();
     if (mem == 0)
     {
@@ -719,14 +725,14 @@ int allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
         p->ram_arr[i].offset_in_swap_file = -1;
         p->ram_arr[i].pagedir = pgdir;
         p->ram_arr[i].virtual_adrr = a;
+        p->total_allocated_pages += 1;
+#ifdef NFUA
+        myproc()->ram_arr[i].age_count = 0;
+#endif
 
-        #ifdef NFUA
-                myproc()->ram_arr[i].age_count = 0;
-        #endif
-
-        #ifdef LAPA
-                myproc()->ram_arr[i].age_count = 0xFFFFFFFF;
-        #endif
+#ifdef LAPA
+        myproc()->ram_arr[i].age_count = 0xFFFFFFFF;
+#endif
       }
       else
       { //case 2: no space in ram, so we swap

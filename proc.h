@@ -64,9 +64,10 @@ struct proc {
   struct file *swapFile;      //page file
   struct page ram_arr[MAX_PYSC_PAGES];
   struct page swap_arr[MAX_PYSC_PAGES];
-  int ram_counter;            //Ram_arr counter of occupied cells
-  int swap_counter;           //Swap_arr counter of occupied cells
-
+  int total_allocated_pages;    // Total number of aloocated pages
+  int total_paged_out;          // Total number of paged-out pages
+  int current_paged_out;        // Current number of paged-out pages
+  int total_page_faults;        // Total number of page faults     
 };
 
 // Process memory is laid out contiguously, low addresses first:
