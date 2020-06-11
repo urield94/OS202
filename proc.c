@@ -111,7 +111,7 @@ found:
   sp -= 4;
   *(uint *)sp = (uint)trapret;
   
-  /******************Task-4*******************/
+  /****************** TASK - 4 *******************/
   p->total_allocated_pages = 0;
   p->total_page_faults = 0;
   p->total_paged_out = 0;
@@ -137,7 +137,11 @@ void userinit(void)
 {
   struct proc *p;
   extern char _binary_initcode_start[], _binary_initcode_size[];
+
+  /****************** TASK - 4 ******************/
   init_frame_size = get_free_frames();
+  /**********************************************/
+
   p = allocproc();
 
   initproc = p;
@@ -216,11 +220,14 @@ int fork(void)
     return -1;
   }
 
+  /****************** TASK - 4 ******************/
   np->current_paged_out = curproc->current_paged_out;
   np->total_paged_out = 0;
   np->total_page_faults = 0;
   np->total_allocated_pages = curproc->total_allocated_pages;
+  /**********************************************/
 
+  /****************** TASK - 1.3 ******************/
   if (curproc->pid > 2 && !is_none_paging_policy())
   {
     for (int i = 0; i < 16; i++)
@@ -243,6 +250,7 @@ int fork(void)
       
     }
   }
+  /**********************************************/
 
   np->sz = curproc->sz;
   np->parent = curproc;
@@ -267,25 +275,6 @@ np->state = RUNNABLE;
 release(&ptable.lock);
 
 return pid;
-}
-
-void removePages(struct proc *p)
-{
-  if (p->pid > 2 && !is_none_paging_policy())
-  {
-    for (int i = 0; i < 16; i++)
-    {
-      p->ram_arr[i].occupied = 0;
-      p->ram_arr[i].virtual_adrr = 0;
-      p->ram_arr[i].offset_in_swap_file = 0;
-      p->ram_arr[i].pagedir = 0;
-
-      p->swap_arr[i].occupied = 0;
-      p->swap_arr[i].virtual_adrr = 0;
-      p->swap_arr[i].offset_in_swap_file = 0;
-      p->swap_arr[i].pagedir = 0;
-    }
-  }
 }
 
 // Exit the current process.  Does not return.
@@ -317,12 +306,12 @@ void exit(void)
   end_op();
   curproc->cwd = 0;
 
-  /**************1.3****************/
+  /************** TASK - 1.3 ****************/
   if (curproc->pid > 2 && !is_none_paging_policy())
   {
     removeSwapFile(curproc);
   }
-  /********************************/
+  /******************************************/
 
   acquire(&ptable.lock);
 
@@ -342,9 +331,12 @@ void exit(void)
 
   // Jump into the scheduler, never to return.
   curproc->state = ZOMBIE;
-  #ifdef VERBOSE_PRINT_TRUE
+
+  /****************** TASK - 4 ******************/
+  #ifdef VERBOSE_ON
   procdump();
   #endif
+  /**********************************************/
 
   sched();
   panic("zombie exit");
@@ -378,12 +370,12 @@ int wait(void)
         p->pid = 0;
         p->parent = 0;
         p->name[0] = 0;
-        /*****************Task 1.3*************/
+        /***************** TASK - 1.3 *************/
         if (p->pid > 2 && !is_none_paging_policy())
         {
           removePages(p);
         }
-        /*************************************/
+        /******************************************/
         p->killed = 0;
         p->state = UNUSED;
         release(&ptable.lock);
@@ -438,12 +430,16 @@ void scheduler(void)
 
       swtch(&(c->scheduler), p->context);
       switchkvm();
+
+      /******************************** TASK - 3 *********************************/
       #if (defined(NFUA) || defined(LAPA))
       update_pages_age_counter();
       #endif
       #ifdef AQ
         sort_advancing_queue();
       #endif
+      /***************************************************************************/
+
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       c->proc = 0;
@@ -619,6 +615,8 @@ void procdump(void)
     else
       state = "???";
       
+    /******************************** TASK - 4 *********************************/
+
     cprintf("pid: %d, state: %s, total_allocated_pages: %d, current_paged_out: %d, page_faults: %d, total_paged_out: %d, name: %s\n",
              p->pid, state, p->total_allocated_pages, p->current_paged_out, p->total_page_faults, p->total_paged_out, p->name);
     if (p->state == SLEEPING)
@@ -631,4 +629,6 @@ void procdump(void)
   }
   int free_frames = (gnofp());
   cprintf("%d / %d free frames in the system\n", free_frames, init_frame_size);
+
+  /******************************************************************************/
 }

@@ -136,8 +136,6 @@ void            userinit(void);
 int             wait(void);
 void            wakeup(void*);
 void            yield(void);
-void            removePages(struct proc*);
-
 
 // swtch.S
 void            swtch(struct context**, struct context*);
@@ -203,6 +201,10 @@ void            switchuvm(struct proc*);
 void            switchkvm(void);
 int             copyout(pde_t*, uint, void*, uint);
 void            clearpteu(pde_t *pgdir, char *uva);
+pde_t*          accessable_walkpgdir(pde_t *, const void*, int);
+int             accessable_mappages(pde_t*, void *, uint , uint , int);
+
+// paging.c
 int             find_free_or_occupied_page(struct proc*, int, int);
 void            disk_to_ram(uint, char*);
 void            read_only_page_fault(void);
@@ -210,6 +212,9 @@ void            handle_page_fault(void);
 int             isValidPage(pde_t*);
 int             isReadOnlyPage(pde_t*);
 void            swap(struct proc*, pde_t*, uint);
+void            removePages(struct proc*);
+
+// policy.c
 int             is_none_paging_policy(void);
 int             second_chance_fifo(void);
 int             not_frequently_used(void);
@@ -219,5 +224,8 @@ int             find_ram_by_policy(void);
 void            update_pages_age_counter(void);
 void            sort_advancing_queue(void);
 
+
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))
+#define OCCUPIED 0
+#define FREE 1

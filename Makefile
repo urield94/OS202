@@ -27,6 +27,8 @@ OBJS = \
 	uart.o\
 	vectors.o\
 	vm.o\
+	policy.o\
+	paging.o\
 
 # Cross-compiling (e.g., on Mac OS X)
 # TOOLPREFIX = i386-jos-elf
@@ -89,9 +91,11 @@ CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 &
 CFLAGS += -D $(SELECTION)
 
 ifeq ($(VERBOSE_PRINT),TRUE)
-CFLAGS += -D VERBOSE_PRINT_TRUE
-else ifeq ($(VERBOSE_PRINT),FALSE)
-CFLAGS += -D VERBOSE_PRINT_FALSE
+CFLAGS += -D VERBOSE_ON
+endif
+
+ifeq ($(VERBOSE_PRINT),FALSE)
+CFLAGS += -D VERBOSE_OFF
 endif
 
 ASFLAGS = -m32 -gdwarf-2 -Wa,-divide
