@@ -7,7 +7,6 @@
 #include "proc.h"
 #include "elf.h"
 
-
 extern char data[]; // defined by kernel.ld
 pde_t *kpgdir;      // for use in scheduler()
 
@@ -256,30 +255,30 @@ int allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
       int i = 0;
       if ((i = find_free_or_occupied_page(p, FREE, 1)) >= 0)
       { //case 1: put page in ram
+        cprintf("allocuvm - Found free index in ram - %d\n", i);
         p->ram_arr[i].occupied = 1;
         p->ram_arr[i].offset_in_swap_file = -1;
         p->ram_arr[i].pagedir = pgdir;
         p->ram_arr[i].virtual_adrr = a;
         p->total_allocated_pages += 1;
 
-        /********* TASK - 3 *********/
-        #ifdef NFUA
-          myproc()->ram_arr[i].age_count = 0;
-        #endif
+/********* TASK - 3 *********/
+#ifdef NFUA
+        myproc()->ram_arr[i].age_count = 0;
+#endif
 
-        #ifdef LAPA
-          myproc()->ram_arr[i].age_count = 0xFFFFFFFF;
-        #endif
-      /******************************/
-
+#ifdef LAPA
+        myproc()->ram_arr[i].age_count = 0xFFFFFFFF;
+#endif
+        /******************************/
       }
       else
       { //case 2: no space in ram, so we swap
+        cprintf("allocuvm - Can't found free index\n");
         swap(p, pgdir, a);
       }
     }
     /**************************************************************/
-
   }
   return newsz;
 }
@@ -310,7 +309,7 @@ int deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
       char *v = P2V(pa);
       kfree(v);
 
-    /************************* TASK - 1.1 *************************/
+      /************************* TASK - 1.1 *************************/
       if (myproc()->pid > 2 && !is_none_paging_policy())
       {
         for (int i = 0; i < 16; i++)
@@ -319,19 +318,19 @@ int deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
           {
             myproc()->ram_arr[i].occupied = 0;
 
-            /********** TASK - 3 **********/
-            #ifdef NFUA
-              myproc()->ram_arr[i].age_count = 0;
-            #endif
+/********** TASK - 3 **********/
+#ifdef NFUA
+            myproc()->ram_arr[i].age_count = 0;
+#endif
 
-            #ifdef LAPA
-              myproc()->ram_arr[i].age_count = 0xFFFFFFFF;
-            #endif
+#ifdef LAPA
+            myproc()->ram_arr[i].age_count = 0xFFFFFFFF;
+#endif
             /******************************/
           }
         }
       }
-    /*************************************************************/
+      /*************************************************************/
 
       *pte = 0;
     }
@@ -379,53 +378,80 @@ copyuvm(pde_t *pgdir, uint sz)
   pde_t *d;
   pte_t *pte;
   uint pa, i, flags;
-
+  char *mem;
   if ((d = setupkvm()) == 0)
     return 0;
-  for (i = 0; i < sz; i += PGSIZE)
-  {
-    if ((pte = walkpgdir(pgdir, (void *)i, 0)) == 0)
-      panic("(copyuvm: pte should exist");
-    if (!(*pte & PTE_P))
-      panic("copyuvm: page not present");
 
-    /************************* TASK - 2 *************************/
-    if ((myproc()->pid > 2) && !is_none_paging_policy())
+  if ((myproc()->pid > 2) && !is_none_paging_policy())
+  {
+    for (i = 0; i < sz; i += PGSIZE)
     {
-      if (*pte & PTE_PG)
+      if ((pte = walkpgdir(pgdir, (void *)i, 0)) == 0)
+        panic("(copyuvm: pte should exist");
+      if (!(*pte & PTE_P))
+        panic("copyuvm: page not present");
+
+      /************************* TASK - 2 *************************/
+      if ((myproc()->pid > 2) && !is_none_paging_policy())
       {
-        pte = walkpgdir(d, (int *)i, 0);
-        *pte |= PTE_PG;
-        *pte &= ~PTE_P;
-        *pte &= PTE_FLAGS(*pte);
-        lcr3(V2P(myproc()->pgdir));
-        continue;
+        if (*pte & PTE_PG)
+        {
+          cprintf("found pgflut\n");
+          pte = walkpgdir(d, (int *)i, 0);
+          *pte |= PTE_PG;
+          *pte &= ~PTE_P;
+          *pte &= PTE_FLAGS(*pte);
+          lcr3(V2P(myproc()->pgdir));
+          continue;
+        }
+      }
+
+      *pte &= ~PTE_W; //make permission for parent_page to be read only
+      /*************************************************************/
+
+      pa = PTE_ADDR(*pte);
+      flags = PTE_FLAGS(*pte);
+      if (mappages(d, (void *)i, PGSIZE, pa, flags) < 0)
+      {
+        goto bad1;
+      }
+      /************************* TASK - 2 *************************/
+      increment_reference_count(pa);
+      /*************************************************************/
+    }
+    lcr3(V2P(pgdir)); // Flush TLB for original process
+    return d;
+
+  bad1:
+    freevm(d);
+    lcr3(V2P(pgdir));
+    return 0;
+  }
+  else
+  {
+    for (i = 0; i < sz; i += PGSIZE)
+    {
+      if ((pte = walkpgdir(pgdir, (void *)i, 0)) == 0)
+        panic("copyuvm: pte should exist");
+      if (!(*pte & PTE_P))
+        panic("copyuvm: page not present");
+      pa = PTE_ADDR(*pte);
+      flags = PTE_FLAGS(*pte);
+      if ((mem = kalloc()) == 0)
+        goto bad2;
+      memmove(mem, (char *)P2V(pa), PGSIZE);
+      if (mappages(d, (void *)i, PGSIZE, V2P(mem), flags) < 0)
+      {
+        kfree(mem);
+        goto bad2;
       }
     }
+    return d;
 
-    *pte &= ~PTE_W; //make permission for parent_page to be read only
-    /*************************************************************/
-
-    pa = PTE_ADDR(*pte);
-    flags = PTE_FLAGS(*pte);
-    // if ((mem = kalloc()) == 0)
-    //   goto bad;
-    // memmove(mem, (char *)P2V(pa), PGSIZE);
-    if (mappages(d, (void *)i, PGSIZE, pa, flags) < 0)
-    {
-      goto bad;
-    }
-    /************************* TASK - 2 *************************/
-    increment_reference_count(pa);
-    /*************************************************************/
+  bad2:
+    freevm(d);
+    return 0;
   }
-  lcr3(V2P(pgdir)); // Flush TLB for original process
-  return d;
-
-bad:
-  freevm(d);
-  lcr3(V2P(pgdir));
-  return 0;
 }
 
 //PAGEBREAK!
@@ -470,11 +496,12 @@ int copyout(pde_t *pgdir, uint va, void *p, uint len)
 }
 
 pte_t *
-accessable_walkpgdir(pde_t *pgdir, const void *va, int alloc){
+accessable_walkpgdir(pde_t *pgdir, const void *va, int alloc)
+{
   return walkpgdir(pgdir, va, alloc);
 }
 
-int
-accessable_mappages(pde_t *pgdir, void *va, uint size, uint pa, int perm){
+int accessable_mappages(pde_t *pgdir, void *va, uint size, uint pa, int perm)
+{
   return mappages(pgdir, va, size, pa, perm);
 }

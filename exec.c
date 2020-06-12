@@ -9,6 +9,7 @@
 
 int exec(char *path, char **argv)
 {
+  cprintf("exec - Start\n");
   char *s, *last;
   int i, off;
   uint argc, sz, sp, ustack[3 + MAXARG + 1];
@@ -82,6 +83,7 @@ int exec(char *path, char **argv)
       goto bad;
     if (ph.vaddr + ph.memsz < ph.vaddr)
       goto bad;
+    cprintf("exec - Call allocuvm 1\n");
     if ((sz = allocuvm(pgdir, sz, ph.vaddr + ph.memsz)) == 0)
       goto bad;
     if (ph.vaddr % PGSIZE != 0)
@@ -96,6 +98,7 @@ int exec(char *path, char **argv)
   // Allocate two pages at the next page boundary.
   // Make the first inaccessible.  Use the second as the user stack.
   sz = PGROUNDUP(sz);
+  cprintf("exec - Call allocuvm 2\n");
   if ((sz = allocuvm(pgdir, sz, sz + 2 * PGSIZE)) == 0)
     goto bad;
   clearpteu(pgdir, (char *)(sz - 2 * PGSIZE));
@@ -135,6 +138,7 @@ int exec(char *path, char **argv)
   curproc->tf->esp = sp;
   switchuvm(curproc);
   freevm(oldpgdir);
+  cprintf("exec - End\n");
   return 0;
 
 bad:

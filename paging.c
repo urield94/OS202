@@ -124,7 +124,7 @@ void swap(struct proc *p, pde_t *pagedir, uint mem)
   if (p->pid > 2 && !is_none_paging_policy())
   {
     /*find avaiable and occupied spaces in ram_arr and swap_arr */
-    cprintf("changing...\n");
+    cprintf("swap - Start\n");
     int index_ram = find_ram_by_policy();
     if (index_ram == -1)
       panic("no occupied cell in ram_arr\n");
@@ -133,7 +133,7 @@ void swap(struct proc *p, pde_t *pagedir, uint mem)
       panic("swap_arr is occupied\n");
 
     /*write to swapFile and update swap_arr*/
-
+    cprintf("swap - Write to file in offset %d the ram of index %d\n", index_swap, index_ram);
     if ((writeToSwapFile(p, (char *)p->ram_arr[index_ram].virtual_adrr, index_swap * PGSIZE, PGSIZE)) == -1)
     {
       panic("wrtie to swapFile failed..\n");
@@ -144,7 +144,7 @@ void swap(struct proc *p, pde_t *pagedir, uint mem)
     p->swap_arr[index_swap].occupied = 1;
 
     /*clear physical address of ram_arr[index] PTE*/
-
+    cprintf("swap - Free PA of ram_arr[%d]\n", index_ram);
     pte_t *pte = accessable_walkpgdir(pagedir, (int *)p->ram_arr[index_ram].virtual_adrr, 0);
     uint pa = PTE_ADDR(*pte);
     kfree(P2V(pa));
@@ -162,6 +162,7 @@ void swap(struct proc *p, pde_t *pagedir, uint mem)
     p->ram_arr[index_ram].pagedir = pagedir;
     p->ram_arr[index_ram].occupied = 1;
     p->ram_arr[index_ram].offset_in_swap_file = -1;
+    cprintf("swap - Done\n");
   }
 }
     /******************************************/

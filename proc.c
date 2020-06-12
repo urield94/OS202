@@ -201,6 +201,7 @@ int growproc(int n)
 // Caller must set state of returned proc to RUNNABLE.
 int fork(void)
 {
+  cprintf("fork - Start\n");
   int i, pid;
   struct proc *np;
   struct proc *curproc = myproc();
@@ -230,6 +231,7 @@ int fork(void)
   /****************** TASK - 1.3 ******************/
   if (curproc->pid > 2 && !is_none_paging_policy())
   {
+      cprintf("fork - Start\n");
     for (int i = 0; i < 16; i++)
     {
       if (curproc->swap_arr[i].occupied)
@@ -273,6 +275,7 @@ acquire(&ptable.lock);
 np->state = RUNNABLE;
 
 release(&ptable.lock);
+cprintf("fork - End\n");
 
 return pid;
 }
