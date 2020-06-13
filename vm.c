@@ -255,7 +255,7 @@ int allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
       int i = 0;
       if ((i = find_free_or_occupied_page(p, FREE, 1)) >= 0)
       { //case 1: put page in ram
-        cprintf("allocuvm - Found free index in ram - %d\n", i);
+        cprintf("allocuvm - Proccess with pid: %d found free index in ram - %d\n", p->pid, i);
         p->ram_arr[i].occupied = 1;
         p->ram_arr[i].offset_in_swap_file = -1;
         p->ram_arr[i].pagedir = pgdir;
@@ -274,7 +274,7 @@ int allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
       }
       else
       { //case 2: no space in ram, so we swap
-        cprintf("allocuvm - Can't found free index\n");
+        cprintf("allocuvm - Proccess with pid: %d can't found free index\n", p->pid);
         swap(p, pgdir, a);
       }
     }
@@ -289,6 +289,8 @@ int allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 // process size.  Returns the new process size.
 int deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 {
+  cprintf("deallocuvm - Process with pid: %d start deallocating\n", myproc()->pid);
+
   pte_t *pte;
   uint a, pa;
 
@@ -314,9 +316,11 @@ int deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
       {
         for (int i = 0; i < 16; i++)
         {
-          if (myproc()->ram_arr[i].virtual_adrr == a && (myproc()->ram_arr[i].pagedir == pgdir))
+          if (myproc()->ram_arr[i].virtual_adrr == a && myproc()->ram_arr[i].occupied && myproc()->pgdir == pgdir)
           {
+            cprintf("deallocuvm - Process with pid: %d selected the %d index in ram to be removed\n", myproc()->pid, i);
             myproc()->ram_arr[i].occupied = 0;
+            myproc()->ram_arr[i].virtual_adrr = 0;
 
 /********** TASK - 3 **********/
 #ifdef NFUA
@@ -327,6 +331,7 @@ int deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
             myproc()->ram_arr[i].age_count = 0xFFFFFFFF;
 #endif
             /******************************/
+            break;
           }
         }
       }
@@ -334,7 +339,23 @@ int deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 
       *pte = 0;
     }
+    else if ((myproc()->pid > 2 && !is_none_paging_policy()) && *pte & PTE_PG && myproc()->pgdir == pgdir)
+    {
+      cprintf("deallocuvm - Process with pid: %d found page fualt\n", myproc()->pid);
+      int j;
+      for (j = 0; j < MAX_PYSC_PAGES; j++)
+      {
+        if (myproc()->swap_arr[j].virtual_adrr == a)
+          break;
+      }
+      if (j == MAX_PYSC_PAGES)
+        panic("error - deallocuvm fuinction - Paged not out to secondary storage");
+      myproc()->swap_arr[j].occupied = 0;
+      *pte = 0;
+    }
   }
+  cprintf("deallocuvm - Process with pid: %d done deallocating\n", myproc()->pid);
+
   return newsz;
 }
 
@@ -392,20 +413,16 @@ copyuvm(pde_t *pgdir, uint sz)
         panic("copyuvm: page not present");
 
       /************************* TASK - 2 *************************/
-      if ((myproc()->pid > 2) && !is_none_paging_policy())
+      if (*pte & PTE_PG)
       {
-        if (*pte & PTE_PG)
-        {
-          cprintf("found pgflut\n");
-          pte = walkpgdir(d, (int *)i, 0);
-          *pte |= PTE_PG;
-          *pte &= ~PTE_P;
-          *pte &= PTE_FLAGS(*pte);
-          lcr3(V2P(myproc()->pgdir));
-          continue;
-        }
+        cprintf("copyuvm - Found pgflut\n");
+        pte = walkpgdir(d, (int *)i, 0);
+        *pte |= PTE_PG;
+        *pte &= ~PTE_P;
+        *pte &= PTE_FLAGS(*pte);
+        lcr3(V2P(myproc()->pgdir));
+        continue;
       }
-
       *pte &= ~PTE_W; //make permission for parent_page to be read only
       /*************************************************************/
 

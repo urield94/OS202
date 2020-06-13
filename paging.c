@@ -121,11 +121,26 @@ void disk_to_ram(uint start_pfault_va, char *ka)
     /*************** TASK - 1.1 ***************/
 void swap(struct proc *p, pde_t *pagedir, uint mem)
 {
+  cprintf("\nProccess with pid: %d status - \n", p->pid);
+  int k;
+  cprintf("RAM Array before changing by policy:\n");
+  for(k = 0; k< MAX_PYSC_PAGES; k++){
+     cprintf("ram_arr[%d]: occupied = %d, virtual_adrr = %x, offset_in_swap_file = %d\t\n",k, p->ram_arr[k].occupied, p->ram_arr[k].virtual_adrr, p->ram_arr[k].offset_in_swap_file);
+  }
+
+  cprintf("not RAM Array:\n");
+  for(k = 0; k< MAX_PYSC_PAGES; k++){
+     cprintf("swap_arr[%d]: occupied = %d, virtual_adrr = %x, offset_in_swap_file = %d\t\n",k, p->swap_arr[k].occupied, p->swap_arr[k].virtual_adrr, p->swap_arr[k].offset_in_swap_file);
+  }
   if (p->pid > 2 && !is_none_paging_policy())
   {
     /*find avaiable and occupied spaces in ram_arr and swap_arr */
     cprintf("swap - Start\n");
     int index_ram = find_ram_by_policy();
+  cprintf("RAM Array after changing by policy:\n");
+  for(k = 0; k< MAX_PYSC_PAGES; k++){
+     cprintf("ram_arr[%d]: occupied = %d, virtual_adrr = %x, offset_in_swap_file = %d\t\n",k, p->ram_arr[k].occupied, p->ram_arr[k].virtual_adrr, p->ram_arr[k].offset_in_swap_file);
+  }
     if (index_ram == -1)
       panic("no occupied cell in ram_arr\n");
     int index_swap = find_free_or_occupied_page(p, FREE, 0);
@@ -133,15 +148,16 @@ void swap(struct proc *p, pde_t *pagedir, uint mem)
       panic("swap_arr is occupied\n");
 
     /*write to swapFile and update swap_arr*/
-    cprintf("swap - Write to file in offset %d the ram of index %d\n", index_swap, index_ram);
+    cprintf("swap - Write to file in offset %d the ram of index %d (va = %x)\n", index_swap, index_ram, p->ram_arr[index_ram].virtual_adrr);
     if ((writeToSwapFile(p, (char *)p->ram_arr[index_ram].virtual_adrr, index_swap * PGSIZE, PGSIZE)) == -1)
     {
       panic("wrtie to swapFile failed..\n");
     }
-    p->swap_arr[index_swap].virtual_adrr = p->ram_arr[index_ram].virtual_adrr;
+    p->swap_arr[index_swap].virtual_adrr =(uint) p->ram_arr[index_ram].virtual_adrr;
     p->swap_arr[index_swap].offset_in_swap_file = index_swap * PGSIZE;
     p->swap_arr[index_swap].pagedir = pagedir;
     p->swap_arr[index_swap].occupied = 1;
+
 
     /*clear physical address of ram_arr[index] PTE*/
     cprintf("swap - Free PA of ram_arr[%d]\n", index_ram);

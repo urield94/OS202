@@ -8,7 +8,7 @@
 
 /************************************************ TASK - 3 ************************************************/
 
-    /*************************************** Policy's Algorithms ***************************************/
+/*************************************** Policy's Algorithms ***************************************/
 int second_chance_fifo()
 {
   struct proc *curproc = myproc();
@@ -27,7 +27,10 @@ int second_chance_fifo()
     if (*pte & PTE_A)
     {
       *pte &= ~PTE_A;
-      temp[temp_index] = curproc->ram_arr[i];
+      temp[temp_index].occupied = curproc->ram_arr[i].occupied;
+      temp[temp_index].offset_in_swap_file = curproc->ram_arr[i].offset_in_swap_file;
+      temp[temp_index].virtual_adrr = curproc->ram_arr[i].virtual_adrr;
+      temp[temp_index].pagedir = curproc->ram_arr[i].pagedir;
       temp_index++;
     }
     else
@@ -44,22 +47,36 @@ int second_chance_fifo()
     {
       while (index < MAX_PYSC_PAGES - 1)
       {
-        curproc->ram_arr[index] = curproc->ram_arr[index + 1];
+        curproc->ram_arr[index].occupied = curproc->ram_arr[index + 1].occupied;
+        curproc->ram_arr[index].virtual_adrr = curproc->ram_arr[index + 1].virtual_adrr;
+        curproc->ram_arr[index].offset_in_swap_file = curproc->ram_arr[index + 1].offset_in_swap_file;
+        curproc->ram_arr[index].pagedir = curproc->ram_arr[index + 1].pagedir;
         index++;
       }
       curproc->ram_arr[MAX_PYSC_PAGES - 1].occupied = 0;
     }
-    else{
-        panic("SCFIFO - Second Chance FIFO ERROR");
+    else
+    {
+      panic("SCFIFO - Second Chance FIFO ERROR");
     }
     return index;
   }
 
+  struct page tmp_page;
+  tmp_page.offset_in_swap_file = curproc->ram_arr[index].offset_in_swap_file;
+  tmp_page.occupied = curproc->ram_arr[index].occupied;
+  tmp_page.virtual_adrr = curproc->ram_arr[index].virtual_adrr;
+  tmp_page.pagedir = curproc->ram_arr[index].pagedir;
+
   i++;
   int new_index = 0;
-  while ((i < MAX_PYSC_PAGES) && (curproc->ram_arr[i].occupied == 1))
+  while (i < MAX_PYSC_PAGES && curproc->ram_arr[i].occupied)
   {
-    curproc->ram_arr[new_index] = curproc->ram_arr[i];
+    curproc->ram_arr[new_index].occupied = curproc->ram_arr[i].occupied;
+    curproc->ram_arr[new_index].virtual_adrr = curproc->ram_arr[i].virtual_adrr;
+    curproc->ram_arr[new_index].offset_in_swap_file = curproc->ram_arr[i].offset_in_swap_file;
+    curproc->ram_arr[new_index].pagedir = curproc->ram_arr[i].pagedir;
+
     i++;
     new_index++;
   }
@@ -67,11 +84,18 @@ int second_chance_fifo()
   i = 0;
   while (new_index < MAX_PYSC_PAGES)
   {
-    curproc->ram_arr[new_index] = temp[i];
+    curproc->ram_arr[new_index].occupied = temp[i].occupied;
+    curproc->ram_arr[new_index].virtual_adrr = temp[i].virtual_adrr;
+    curproc->ram_arr[new_index].offset_in_swap_file = temp[i].offset_in_swap_file;
+    curproc->ram_arr[new_index].pagedir = temp[i].pagedir;
     i++;
     new_index++;
   }
 
+    curproc->ram_arr[MAX_PYSC_PAGES - 1].occupied = tmp_page.occupied;
+    curproc->ram_arr[MAX_PYSC_PAGES - 1].virtual_adrr = tmp_page.virtual_adrr;
+    curproc->ram_arr[MAX_PYSC_PAGES - 1].offset_in_swap_file = tmp_page.offset_in_swap_file;
+    curproc->ram_arr[MAX_PYSC_PAGES - 1].pagedir = tmp_page.pagedir;
   return MAX_PYSC_PAGES - 1;
 }
 
@@ -150,9 +174,9 @@ int advancing_queue()
   return MAX_PYSC_PAGES - 1;
 }
 
-    /****************************************************************************************************/
+/****************************************************************************************************/
 
-    /*************************************** Policy's Maintainers ***************************************/
+/*************************************** Policy's Maintainers ***************************************/
 
 void update_pages_age_counter()
 {
@@ -188,15 +212,15 @@ void sort_advancing_queue()
     pte_t *pte_pre = accessable_walkpgdir(curproc->pgdir, (void *)curproc->ram_arr[prev_page_idx].virtual_adrr, 0);
     if (((*pte_pre & PTE_A) != 0) && ((*pte_curr & PTE_A) == 0))
     {
-      struct page tmp =  curproc->ram_arr[prev_page_idx];
+      struct page tmp = curproc->ram_arr[prev_page_idx];
       curproc->ram_arr[prev_page_idx] = curproc->ram_arr[curr_page_idx];
       curproc->ram_arr[curr_page_idx] = tmp;
     }
   }
 }
-    /*********************************************************************************************/
+/*********************************************************************************************/
 
-    /*************************************** Choose Policy ***************************************/
+/*************************************** Choose Policy ***************************************/
 int is_none_paging_policy()
 {
 #ifdef NONE
@@ -221,7 +245,6 @@ int find_ram_by_policy()
 #endif
   return -1;
 }
-    /*********************************************************************************************/
+/*********************************************************************************************/
 
 /********************************************************************************************************************/
-

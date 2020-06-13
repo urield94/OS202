@@ -9,7 +9,7 @@
 
 int exec(char *path, char **argv)
 {
-  cprintf("exec - Start\n");
+  cprintf("exec - Proccess with pid: %d start executing %s\n", myproc()->pid, path);
   char *s, *last;
   int i, off;
   uint argc, sz, sp, ustack[3 + MAXARG + 1];
@@ -138,7 +138,7 @@ int exec(char *path, char **argv)
   curproc->tf->esp = sp;
   switchuvm(curproc);
   freevm(oldpgdir);
-  cprintf("exec - End\n");
+  cprintf("exec - Proccess with pid: %d done executing %s\n", myproc()->pid, path);
   return 0;
 
 bad:

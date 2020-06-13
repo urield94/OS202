@@ -68,7 +68,7 @@ void kfree(char *v)
   if ((uint)v % PGSIZE || v < end || V2P(v) >= PHYSTOP)
     panic("kfree");
 
-  
+
 
   if (kmem.use_lock)
     acquire(&kmem.lock);
@@ -104,8 +104,8 @@ kalloc(void)
   if (r)
   {
     kmem.freelist = r->next;
-    kmem.number_of_free_pages--; //COW test
-    kmem.page_ref_count[V2P((char*)r) >> PTXSHIFT] = 1; //reference count set to 1
+    kmem.number_of_free_pages--;                         //COW test
+    kmem.page_ref_count[V2P((char *)r) >> PTXSHIFT] = 1; //reference count set to 1
   }
   if (kmem.use_lock)
     release(&kmem.lock);
@@ -115,57 +115,63 @@ kalloc(void)
 //COW test
 int gnofp(void)
 {
-  acquire(&kmem.lock);
+  if (kmem.use_lock)
+    acquire(&kmem.lock);
   int number_of_free_pages = kmem.number_of_free_pages;
-  release(&kmem.lock);
+  if (kmem.use_lock)
+    release(&kmem.lock);
   return number_of_free_pages;
 }
 
 void decrement_reference_count(uint pa)
-{ 
-  if(pa < (uint)V2P(end) || pa >= PHYSTOP)
+{
+  if (pa < (uint)V2P(end) || pa >= PHYSTOP)
     panic("decrementReferenceCount");
-
-  acquire(&kmem.lock);
+  if (kmem.use_lock)
+    acquire(&kmem.lock);
   --kmem.page_ref_count[pa >> PTXSHIFT];
-  release(&kmem.lock);
+  if (kmem.use_lock)
+    release(&kmem.lock);
 }
 
 void increment_reference_count(uint pa)
 {
-  if(pa < (uint)V2P(end) || pa >= PHYSTOP)
+  if (pa < (uint)V2P(end) || pa >= PHYSTOP)
     panic("incrementReferenceCount");
-
-  acquire(&kmem.lock);
+  if (kmem.use_lock)
+    acquire(&kmem.lock);
   ++kmem.page_ref_count[pa >> PTXSHIFT];
-  release(&kmem.lock);
+  if (kmem.use_lock)
+    release(&kmem.lock);
 }
 
 uint get_reference_count(uint pa)
 {
-  if(pa < (uint)V2P(end) || pa >= PHYSTOP)
+  if (pa < (uint)V2P(end) || pa >= PHYSTOP)
     panic("getReferenceCount");
   uint count;
-
-  acquire(&kmem.lock);
+  if (kmem.use_lock)
+    acquire(&kmem.lock);
   count = kmem.page_ref_count[pa >> PTXSHIFT];
-  release(&kmem.lock);
+  if (kmem.use_lock)
+    release(&kmem.lock);
 
   return count;
 }
 
-int get_free_frames(void){
+int get_free_frames(void)
+{
   struct run *list;
   int count = 0;
-  acquire(&kmem.lock);
+  if (kmem.use_lock)
+    acquire(&kmem.lock);
   list = kmem.freelist;
-  while(list){
+  while (list)
+  {
     list = list->next;
     count++;
   }
-  release(&kmem.lock);
+  if (kmem.use_lock)
+    release(&kmem.lock);
   return count;
 }
-
-
-
