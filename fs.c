@@ -487,15 +487,24 @@ writei(struct inode *ip, char *src, uint off, uint n)
   struct buf *bp;
 
   if(ip->type == T_DEV){
-    if(ip->major < 0 || ip->major >= NDEV || !devsw[ip->major].write)
+    if(ip->major < 0 || ip->major >= NDEV || !devsw[ip->major].write){
+      cprintf("panic 1\n");
       return -1;
+    }
     return devsw[ip->major].write(ip, src, n);
   }
 
-  if(off > ip->size || off + n < off)
+  if(off > ip->size || off + n < off){
+          cprintf("off=%d, n=%d, ip->size=%d\n", off, n , ip->size);
+
     return -1;
-  if(off + n > MAXFILE*BSIZE)
-    return -1;
+  }
+  if(off + n > MAXFILE*BSIZE){
+          cprintf("panic 3\n");
+              return -1;
+
+
+  }
 
   for(tot=0; tot<n; tot+=m, off+=m, src+=m){
     bp = bread(ip->dev, bmap(ip, off/BSIZE));

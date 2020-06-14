@@ -83,9 +83,8 @@ void trap(struct trapframe *tf)
     {
       if (myproc() != 0)
       {
-         cprintf("tf->cs & 3 = %d\n", (tf->cs & 3));
-        // if ((tf->cs & 3) == DPL_USER)
-        // {
+        if ((tf->cs & 3) == DPL_USER)
+        {
          
           if (isReadOnlyPage(myproc()->pgdir))
           {
@@ -94,12 +93,11 @@ void trap(struct trapframe *tf)
           }
           if (isValidPage(myproc()->pgdir))
           {
-            cprintf("Handling PAGE-OUT\n");
             handle_page_fault();
             myproc()->current_paged_out -= 1;
           }
           myproc()->total_page_faults += 1;
-        // }
+        }
       }
       lapiceoi();
       break;

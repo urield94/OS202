@@ -46,14 +46,44 @@ void test_paging1(void)
         else
             printf(1, "Paging working correctly.\n");
         wait();
+        free(child_array);
     }
     else
         printf(2, "Fork failed!\n");
+    
 }
 
 void test_paging2(void)
 {
+    int arr_size = 50;
+    char* arr[arr_size];
+    int i;
+  for(i = 0; i<arr_size; i++) {
+    arr[i] = malloc(516);
+    arr[i][0] = 15;
+  }
+  int pid = fork();
+  if(pid == 0) {
     
+    for(i = 0; i<arr_size; i++) 
+      arr[i][0] = 15;
+    printf (1, "Child done writing\n");
+    sleep(100);
+
+    for(i = 0; i<arr_size; i++) 
+      printf(1, "arr[%d][0] = %d\n", i, arr[i][0]);
+    printf (1, "Chile done reading\n");
+    sleep(100);
+    
+    exit();
+  }
+  wait();
+  printf (1, "Child died\n");
+  
+  for(i = 0; i<arr_size; i++) {
+    free(arr[i]);
+  }
+
 }
 
 void test_paging3(void)
@@ -63,7 +93,7 @@ void test_paging3(void)
 void tests_paging_framework(void)
 {
     printf(1, "Paging Test1 starts....\n");
-    test_paging1();
+    // test_paging1();
     printf(1, "Paging Test1 done!\n");
     printf(1, "--------------------\n");
     printf(1, "Paging Test2 starts....\n");
@@ -144,7 +174,7 @@ void tests_cow(void)
 int main(void)
 {
     tests_paging_framework();
-    tests_cow();
+    // tests_cow();
 
     exit();
 }

@@ -106,6 +106,7 @@ void disk_to_ram(uint start_pfault_va, char *ka)
       {
         readFromSwapFile(p, buffer, i * PGSIZE, PGSIZE);
         int ram_index = find_free_or_occupied_page(p, FREE, 1);
+        cprintf("disk_to_ram - Free ram index: %d\n", ram_index);
         p->ram_arr[ram_index].offset_in_swap_file = p->swap_arr[i].offset_in_swap_file;
         p->ram_arr[ram_index].virtual_adrr = p->swap_arr[i].virtual_adrr;
         p->ram_arr[ram_index].pagedir = p->swap_arr[i].pagedir;
@@ -263,17 +264,21 @@ void handle_page_fault()
     int ram_index = find_free_or_occupied_page(p, FREE, 1);
     if (ram_index >= 0)
     {
+      cprintf("handle_pfualt - Found free index in ram - %d\n", ram_index);
       disk_to_ram(start_pfault_va, new_physical_adrr);
       memmove((void *)start_pfault_va, buffer, PGSIZE);
     }
     else
     {
+      cprintf("handle_pfualt - No free index in ram\n");
       struct page exile_ram = p->ram_arr[find_ram_by_policy()];
       disk_to_ram(start_pfault_va, new_physical_adrr);
       memmove(new_physical_adrr, buffer, PGSIZE);
       int index = find_free_or_occupied_page(p, FREE, 0);
       if (index == -1)
         panic("swap_arr is occupied\n");
+              cprintf("handle_pfualt -ram_arr[%d]: occupied=%d, va=%x\n",ram_index, exile_ram.occupied, exile_ram.virtual_adrr);
+
       cprintf("the index is:%d\n", exile_ram.virtual_adrr);
       if ((writeToSwapFile(p, (char *)exile_ram.virtual_adrr, index * PGSIZE, PGSIZE)) == -1)
         panic("cant write file\n");

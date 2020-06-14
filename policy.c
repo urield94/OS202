@@ -92,7 +92,7 @@ int second_chance_fifo()
     new_index++;
   }
 
-    curproc->ram_arr[MAX_PYSC_PAGES - 1].occupied = tmp_page.occupied;
+    curproc->ram_arr[MAX_PYSC_PAGES - 1].occupied = 0;
     curproc->ram_arr[MAX_PYSC_PAGES - 1].virtual_adrr = tmp_page.virtual_adrr;
     curproc->ram_arr[MAX_PYSC_PAGES - 1].offset_in_swap_file = tmp_page.offset_in_swap_file;
     curproc->ram_arr[MAX_PYSC_PAGES - 1].pagedir = tmp_page.pagedir;

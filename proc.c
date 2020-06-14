@@ -236,7 +236,6 @@ int fork(void)
   /****************** TASK - 1.3 ******************/
   if (curproc->pid > 2 && !is_none_paging_policy())
   {
-      cprintf("fork - Start\n");
     for (int i = 0; i < 16; i++)
     {
       if (curproc->swap_arr[i].occupied)
@@ -256,6 +255,10 @@ int fork(void)
       }
       
     }
+    int k;
+      for(k = 0; k< MAX_PYSC_PAGES; k++){
+     cprintf("ram_arr[%d]: occupied = %d, virtual_adrr = %x, offset_in_swap_file = %d\t\n",k, np->ram_arr[k].occupied, np->ram_arr[k].virtual_adrr, np->ram_arr[k].offset_in_swap_file);
+  }
   }
   /**********************************************/
 

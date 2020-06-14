@@ -120,11 +120,11 @@ filewrite(struct file *f, char *addr, int n)
   int r;
 
   if(f->writable == 0){
-    cprintf("file not writeable!");
     return -1;
   }
-  if(f->type == FD_PIPE)
+  if(f->type == FD_PIPE){
     return pipewrite(f->pipe, addr, n);
+  }
   if(f->type == FD_INODE){
     // write a few blocks at a time to avoid exceeding
     // the maximum log transaction size, including

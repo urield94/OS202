@@ -393,6 +393,96 @@ void clearpteu(pde_t *pgdir, char *uva)
 
 // Given a parent process's page table, create a copy
 // of it for a child.
+// pde_t *
+// copyuvm(pde_t *pgdir, uint sz)
+// {
+//   pde_t *d;
+//   pte_t *pte;
+//   uint pa, i, flags;
+//   char *mem;
+//   if ((d = setupkvm()) == 0)
+//     return 0;
+
+//   if ((myproc()->pid > 2) && !is_none_paging_policy())
+//   {
+//     int k;
+//       cprintf("RAM Array before changing by policy:\n");
+//   for(k = 0; k< MAX_PYSC_PAGES; k++){
+//      cprintf("ram_arr[%d]: occupied = %d, virtual_adrr = %x, offset_in_swap_file = %d\t\n",k, myproc()->ram_arr[k].occupied, myproc()->ram_arr[k].virtual_adrr, myproc()->ram_arr[k].offset_in_swap_file);
+//   }
+
+//   cprintf("not RAM Array:\n");
+//   for(k = 0; k< MAX_PYSC_PAGES; k++){
+//      cprintf("swap_arr[%d]: occupied = %d, virtual_adrr = %x, offset_in_swap_file = %d\t\n",k, myproc()->swap_arr[k].occupied, myproc()->swap_arr[k].virtual_adrr,myproc()->swap_arr[k].offset_in_swap_file);
+//   }
+//     for (i = 0; i < sz; i += PGSIZE)
+//     {
+//       cprintf("copyuvm - ram_arr[%d]: occupied=%d, va=%x\n", i/PGSIZE, myproc()->ram_arr[i/PGSIZE].occupied, myproc()->ram_arr[i/PGSIZE].virtual_adrr);
+
+//       if ((pte = walkpgdir(pgdir, (void *)i, 0)) == 0)
+//         panic("(copyuvm: pte should exist");
+//       if (!(*pte & PTE_P))
+//         panic("copyuvm: page not present");
+
+//       /************************* TASK - 2 *************************/
+//       if (*pte & PTE_PG)
+//       {
+//         cprintf("copyuvm - Found pgflut\n");
+//         pte = walkpgdir(d, (int *)i, 0);
+//         *pte |= PTE_PG;
+//         *pte &= ~PTE_P;
+//         *pte &= PTE_FLAGS(*pte);
+//         lcr3(V2P(myproc()->pgdir));
+//         continue;
+//       }
+//       *pte &= ~PTE_W; //make permission for parent_page to be read only
+//       /*************************************************************/
+
+//       pa = PTE_ADDR(*pte);
+//       flags = PTE_FLAGS(*pte);
+//       if (mappages(d, (void *)i, PGSIZE, pa, flags) < 0)
+//       {
+//         goto bad1;
+//       }
+//       /************************* TASK - 2 *************************/
+//       increment_reference_count(pa);
+//       /*************************************************************/
+//     }
+//     lcr3(V2P(pgdir)); // Flush TLB for original process
+//     return d;
+
+//   bad1:
+//     freevm(d);
+//     lcr3(V2P(pgdir));
+//     return 0;
+//   }
+//   else
+//   {
+//     for (i = 0; i < sz; i += PGSIZE)
+//     {
+//       if ((pte = walkpgdir(pgdir, (void *)i, 0)) == 0)
+//         panic("copyuvm: pte should exist");
+//       if (!(*pte & PTE_P))
+//         panic("copyuvm: page not present");
+//       pa = PTE_ADDR(*pte);
+//       flags = PTE_FLAGS(*pte);
+//       if ((mem = kalloc()) == 0)
+//         goto bad2;
+//       memmove(mem, (char *)P2V(pa), PGSIZE);
+//       if (mappages(d, (void *)i, PGSIZE, V2P(mem), flags) < 0)
+//       {
+//         kfree(mem);
+//         goto bad2;
+//       }
+//     }
+//     return d;
+
+//   bad2:
+//     freevm(d);
+//     return 0;
+//   }
+// }
+
 pde_t *
 copyuvm(pde_t *pgdir, uint sz)
 {
@@ -400,22 +490,18 @@ copyuvm(pde_t *pgdir, uint sz)
   pte_t *pte;
   uint pa, i, flags;
   char *mem;
+
   if ((d = setupkvm()) == 0)
     return 0;
-
-  if ((myproc()->pid > 2) && !is_none_paging_policy())
+  for (i = 0; i < sz; i += PGSIZE)
   {
-    for (i = 0; i < sz; i += PGSIZE)
-    {
-      if ((pte = walkpgdir(pgdir, (void *)i, 0)) == 0)
-        panic("(copyuvm: pte should exist");
-      if (!(*pte & PTE_P))
-        panic("copyuvm: page not present");
+    if ((pte = walkpgdir(pgdir, (void *)i, 0)) == 0)
+      panic("copyuvm: pte should exist");
 
-      /************************* TASK - 2 *************************/
+     if ((myproc()->pid > 2) && !is_none_paging_policy())
+    {
       if (*pte & PTE_PG)
       {
-        cprintf("copyuvm - Found pgflut\n");
         pte = walkpgdir(d, (int *)i, 0);
         *pte |= PTE_PG;
         *pte &= ~PTE_P;
@@ -423,52 +509,22 @@ copyuvm(pde_t *pgdir, uint sz)
         lcr3(V2P(myproc()->pgdir));
         continue;
       }
-      *pte &= ~PTE_W; //make permission for parent_page to be read only
-      /*************************************************************/
-
-      pa = PTE_ADDR(*pte);
-      flags = PTE_FLAGS(*pte);
-      if (mappages(d, (void *)i, PGSIZE, pa, flags) < 0)
-      {
-        goto bad1;
-      }
-      /************************* TASK - 2 *************************/
-      increment_reference_count(pa);
-      /*************************************************************/
     }
-    lcr3(V2P(pgdir)); // Flush TLB for original process
-    return d;
-
-  bad1:
-    freevm(d);
-    lcr3(V2P(pgdir));
-    return 0;
+    if (!(*pte & PTE_P))
+      panic("copyuvm: page not present");
+    pa = PTE_ADDR(*pte);
+    flags = PTE_FLAGS(*pte);
+    if ((mem = kalloc()) == 0)
+      goto bad;
+    memmove(mem, (char *)P2V(pa), PGSIZE);
+    if (mappages(d, (void *)i, PGSIZE, V2P(mem), flags) < 0)
+      goto bad;
   }
-  else
-  {
-    for (i = 0; i < sz; i += PGSIZE)
-    {
-      if ((pte = walkpgdir(pgdir, (void *)i, 0)) == 0)
-        panic("copyuvm: pte should exist");
-      if (!(*pte & PTE_P))
-        panic("copyuvm: page not present");
-      pa = PTE_ADDR(*pte);
-      flags = PTE_FLAGS(*pte);
-      if ((mem = kalloc()) == 0)
-        goto bad2;
-      memmove(mem, (char *)P2V(pa), PGSIZE);
-      if (mappages(d, (void *)i, PGSIZE, V2P(mem), flags) < 0)
-      {
-        kfree(mem);
-        goto bad2;
-      }
-    }
-    return d;
+  return d;
 
-  bad2:
-    freevm(d);
-    return 0;
-  }
+bad:
+  freevm(d);
+  return 0;
 }
 
 //PAGEBREAK!
