@@ -243,6 +243,10 @@ void read_only_page_fault()
   lcr3(V2P(myproc()->pgdir));                // Flush TLB
 
   //TODO: add the writable page to the ram_arr or swap_arr
+  int index = find_ram_by_policy();
+  myproc()->ram_arr[index].virtual_adrr = va;
+  myproc()->ram_arr[index].pagedir = myproc()->pgdir;
+  myproc()->ram_arr[index].occupied = 1;
 }
     /******************************************/
 
