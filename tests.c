@@ -10,11 +10,11 @@
 void test_paging1(void)
 {
     int i, pid;
-    int *child_array = malloc(PGSIZE);
-    int child_array_length = (PGSIZE) / sizeof(int);
+    char *child_array = sbrk(16 * PGSIZE);
+    int child_array_length = (16 * PGSIZE) / sizeof(int);
     for (i = 0; i < child_array_length; i++)
     {
-        child_array[i] = i + 1;
+        child_array[i] = (char)(i + 1);
     }
     printf(1, "Forking...\n");
     if ((pid = fork()) == 0)
@@ -23,7 +23,7 @@ void test_paging1(void)
         printf(1, "Child - start checking for changes in the array\n");
         for (i = 0; i < child_array_length; i++)
         {
-            if (child_array[i] != i + 1)
+            if (child_array[i] != (char)(i + 1))
             {
                 printf(2, "Child - Unexpected value %d instead of %d in position %d\n", child_array[i], i + 1, i);
                 ok_child = 0;
@@ -41,14 +41,14 @@ void test_paging1(void)
         printf(1, "Parent - start checking for changes in the array\n");
         for (i = 0; i < child_array_length; i++)
         {
-            if (child_array[i] != i + 1)
+            if (child_array[i] != (char)(i + 1))
             {
                 printf(2, "Parent - Unexpected value %d instead of %d in position %d\n", child_array[i], i + 1, i);
                 ok_parent = 0;
                 break;
             }
         }
-       if (ok_parent)
+        if (ok_parent)
             printf(1, "Fork work!\n");
         else
             printf(2, "Fork faild.\n");
@@ -57,22 +57,58 @@ void test_paging1(void)
     }
     else
         printf(2, "Unsuccessful fork.\n");
+
+    free(child_array);
 }
 
 void test_paging2(void)
 {
-    char* a = sbrk(PGSIZE);
-    char* b = sbrk(PGSIZE);
+    char *a = sbrk(3 * PGSIZE);
+    char *b = sbrk(3 * PGSIZE);
     for (int i = 0; i < 10; i++)
     {
         char tmp = a[i];
         a[i] = b[i + 5];
         b[i] = tmp;
     }
+    free(a);
+    free(b);
 }
 
 void test_paging3(void)
 {
+    int i, pid, size = 20;
+    int allocate_size = 1024;
+    char *array[size];
+
+    for (i = 0; i < size; i++)
+    {
+        array[i] = sbrk(allocate_size);
+        array[i][0] = size;
+    }
+
+    if ((pid =fork())== 0)
+    {
+        for (i = 0; i < size; i++){
+            array[i][0] = size;
+        }
+        printf(1, "Child - Sleeping for 250 ms...\n");
+        sleep(250);
+
+        for (i = 0; i < size; i++){
+            printf(1, "array[%d][0] = %d\n", i, array[i][0]);
+        }
+        printf(1, "Child - Sleeping for 250 ms\n");
+        sleep(250);
+        exit();
+    }
+    wait();
+    printf(1, "Parent - Freeing array\n");
+
+    for (i = 0; i < size; i++)
+    {
+        free(array[i]);
+    }
 }
 
 void tests_paging_framework(void)

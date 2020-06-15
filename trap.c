@@ -79,8 +79,8 @@ void trap(struct trapframe *tf)
     break;
   case T_PGFLT:
 
-    if (myproc() != 0 && (tf->cs & 3) == DPL_USER)
-    {
+    // if (myproc() != 0 && (tf->cs & 3) == DPL_USER)
+    // {
       if (isReadOnlyPage(myproc()->pgdir))
       {
         read_only_page_fault();
@@ -94,7 +94,7 @@ void trap(struct trapframe *tf)
 
       lapiceoi();
       break;
-    }
+    // }
   //PAGEBREAK: 13
   default:
     if (myproc() == 0 || (tf->cs & 3) == 0)

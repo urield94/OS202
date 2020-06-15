@@ -138,7 +138,7 @@ void swap(struct proc *p, pde_t *pagedir, uint mem)
     p->swap_arr[index_swap].occupied = 1;
 
     /*clear physical address of ram_arr[index] PTE*/
-    pte_t *pte = accessable_walkpgdir(pagedir, (int *)p->ram_arr[index_ram].virtual_adrr, 0);
+    pte_t *pte = accessable_walkpgdir(pagedir, (void*)p->ram_arr[index_ram].virtual_adrr, 0);
     uint pa = PTE_ADDR(*pte);
     kfree(P2V(pa));
 
@@ -262,13 +262,11 @@ void handle_page_fault()
     int ram_index = find_free_or_occupied_page(p, FREE, 1);
     if (ram_index >= 0)
     {
-      cprintf("handle_pfualt - Found free index in ram - %d\n", ram_index);
       disk_to_ram(start_pfault_va, new_physical_adrr);
       memmove((void *)start_pfault_va, buffer, PGSIZE);
     }
     else
     {
-      cprintf("handle_pfualt - No free index in ram\n");
       struct page exile_ram = p->ram_arr[find_ram_by_policy()];
       disk_to_ram(start_pfault_va, new_physical_adrr);
       memmove(new_physical_adrr, buffer, PGSIZE);
@@ -282,7 +280,7 @@ void handle_page_fault()
       p->swap_arr[swap_index].pagedir = exile_ram.pagedir;
       p->swap_arr[swap_index].occupied = 1;
 
-      pde_t *helper = accessable_walkpgdir(exile_ram.pagedir, (int *)exile_ram.virtual_adrr, 0);
+      pde_t *helper = accessable_walkpgdir(exile_ram.pagedir, (void *)exile_ram.virtual_adrr, 0);
       uint ramPa = PTE_ADDR(*helper);
 
       *helper |= PTE_PG;
