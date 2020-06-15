@@ -79,26 +79,19 @@ void trap(struct trapframe *tf)
     break;
   case T_PGFLT:
 
-    if (myproc()->pid > 2 && !is_none_paging_policy())
+    if (myproc() != 0 && (tf->cs & 3) == DPL_USER)
     {
-      if (myproc() != 0)
+      if (isReadOnlyPage(myproc()->pgdir))
       {
-        if ((tf->cs & 3) == DPL_USER)
-        {
-         
-          if (isReadOnlyPage(myproc()->pgdir))
-          {
-            cprintf("Handling READ-ONLY\n");
-            read_only_page_fault();
-          }
-          if (isValidPage(myproc()->pgdir))
-          {
-            handle_page_fault();
-            myproc()->current_paged_out -= 1;
-          }
-          myproc()->total_page_faults += 1;
-        }
+        read_only_page_fault();
       }
+      else if (myproc()->pid > 2 && !is_none_paging_policy() && isValidPage(myproc()->pgdir))
+      {
+        handle_page_fault();
+        myproc()->current_paged_out -= 1;
+      }
+      myproc()->total_page_faults += 1;
+
       lapiceoi();
       break;
     }

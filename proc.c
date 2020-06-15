@@ -176,27 +176,23 @@ void userinit(void)
 // Return 0 on success, -1 on failure.
 int growproc(int n)
 {
-  cprintf("growproc - Process with pid: %d start grow process\n", myproc()->pid);
   uint sz;
   struct proc *curproc = myproc();
 
   sz = curproc->sz;
   if (n > 0)
   {
-    cprintf("growproc - Process with pid: %d allocating new %d bytes instead of the old %d bytes\n", myproc()->pid, sz+n, sz);
     if ((sz = allocuvm(curproc->pgdir, sz, sz + n)) == 0)
       return -1;
   }
   else if (n < 0)
   {  
-    cprintf("growproc - Process with pid: %d deallocating to %d bytes instead of the old %d bytes\n", myproc()->pid, sz+n, sz);
     curproc->total_allocated_pages = curproc->total_allocated_pages + (PGROUNDDOWN(n)/PGSIZE);
     if ((sz = deallocuvm(curproc->pgdir, sz, sz + n)) == 0)
       return -1;
   }
   curproc->sz = sz;
   switchuvm(curproc);
-    cprintf("growproc - Process with pid: %d done grow process\n", myproc()->pid);
 
   return 0;
 }
@@ -206,7 +202,6 @@ int growproc(int n)
 // Caller must set state of returned proc to RUNNABLE.
 int fork(void)
 {
-  cprintf("fork - Proccess with pid: %d start forking\n", myproc()->pid);
   int i, pid;
   struct proc *np;
   struct proc *curproc = myproc();
@@ -255,10 +250,7 @@ int fork(void)
       }
       
     }
-    int k;
-      for(k = 0; k< MAX_PYSC_PAGES; k++){
-     cprintf("ram_arr[%d]: occupied = %d, virtual_adrr = %x, offset_in_swap_file = %d\t\n",k, np->ram_arr[k].occupied, np->ram_arr[k].virtual_adrr, np->ram_arr[k].offset_in_swap_file);
-  }
+   
   }
   /**********************************************/
 
@@ -283,7 +275,6 @@ acquire(&ptable.lock);
 np->state = RUNNABLE;
 
 release(&ptable.lock);
-  cprintf("fork - Proccess with pid: %d done forking\n", myproc()->pid);
 
 return pid;
 }
@@ -382,10 +373,10 @@ int wait(void)
         p->parent = 0;
         p->name[0] = 0;
         /***************** TASK - 1.3 *************/
-        if (p->pid > 2 && !is_none_paging_policy())
-        {
+        // if (p->pid > 2 && !is_none_paging_policy())
+        // {
           removePages(p);
-        }
+        // }
         /******************************************/
         p->killed = 0;
         p->state = UNUSED;

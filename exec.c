@@ -9,7 +9,6 @@
 
 int exec(char *path, char **argv)
 {
-  cprintf("exec - Proccess with pid: %d start executing %s\n", myproc()->pid, path);
   char *s, *last;
   int i, off;
   uint argc, sz, sp, ustack[3 + MAXARG + 1];
@@ -36,8 +35,17 @@ int exec(char *path, char **argv)
   {
     for (int i = 0; i < MAX_PYSC_PAGES; i++)
     {
-      swap_backup[i] = curproc->swap_arr[i];
-      ram_backup[i] = curproc->ram_arr[i];
+      swap_backup[i].age_count = curproc->swap_arr[i].age_count;
+      swap_backup[i].occupied = curproc->swap_arr[i].occupied;
+      swap_backup[i].offset_in_swap_file = curproc->swap_arr[i].offset_in_swap_file;
+      swap_backup[i].virtual_adrr = curproc->swap_arr[i].virtual_adrr;
+      swap_backup[i].pagedir = curproc->swap_arr[i].pagedir;
+
+      ram_backup[i].age_count = curproc->ram_arr[i].age_count;
+      ram_backup[i].occupied = curproc->ram_arr[i].occupied;
+      ram_backup[i].offset_in_swap_file = curproc->ram_arr[i].offset_in_swap_file;
+      ram_backup[i].virtual_adrr = curproc->ram_arr[i].virtual_adrr;
+      ram_backup[i].pagedir = curproc->ram_arr[i].pagedir;
 
       curproc->swap_arr[i].occupied = 0;
       curproc->swap_arr[i].offset_in_swap_file = -1;
@@ -83,7 +91,6 @@ int exec(char *path, char **argv)
       goto bad;
     if (ph.vaddr + ph.memsz < ph.vaddr)
       goto bad;
-    cprintf("exec - Call allocuvm 1\n");
     if ((sz = allocuvm(pgdir, sz, ph.vaddr + ph.memsz)) == 0)
       goto bad;
     if (ph.vaddr % PGSIZE != 0)
@@ -98,7 +105,6 @@ int exec(char *path, char **argv)
   // Allocate two pages at the next page boundary.
   // Make the first inaccessible.  Use the second as the user stack.
   sz = PGROUNDUP(sz);
-  cprintf("exec - Call allocuvm 2\n");
   if ((sz = allocuvm(pgdir, sz, sz + 2 * PGSIZE)) == 0)
     goto bad;
   clearpteu(pgdir, (char *)(sz - 2 * PGSIZE));
@@ -137,27 +143,41 @@ int exec(char *path, char **argv)
   curproc->tf->eip = elf.entry; // main
   curproc->tf->esp = sp;
   switchuvm(curproc);
+  if (curproc->pid > 2 && !is_none_paging_policy())
+  {
+    removeSwapFile(myproc());
+    createSwapFile(myproc());
+  }
   freevm(oldpgdir);
-  cprintf("exec - Proccess with pid: %d done executing %s\n", myproc()->pid, path);
   return 0;
 
 bad:
   if (pgdir)
   {
     freevm(pgdir);
-    curproc->total_allocated_pages = total_allocated_pages;
-    curproc->total_page_faults = total_page_faults;
-    curproc->total_paged_out = total_paged_out;
-    curproc->current_paged_out = current_paged_out;
-    if (curproc->pid > 2 && !is_none_paging_policy())
+  }
+  curproc->total_allocated_pages = total_allocated_pages;
+  curproc->total_page_faults = total_page_faults;
+  curproc->total_paged_out = total_paged_out;
+  curproc->current_paged_out = current_paged_out;
+  if (curproc->pid > 2 && !is_none_paging_policy())
+  {
+    for (int i = 0; i < MAX_PYSC_PAGES; i++)
     {
-      for (int i = 0; i < MAX_PYSC_PAGES; i++)
-      {
-        curproc->swap_arr[i] = swap_backup[i];
-        curproc->ram_arr[i] = ram_backup[i];
-      }
+      curproc->swap_arr[i].age_count = swap_backup[i].age_count;
+      curproc->swap_arr[i].occupied = swap_backup[i].occupied;
+      curproc->swap_arr[i].offset_in_swap_file = swap_backup[i].offset_in_swap_file;
+      curproc->swap_arr[i].virtual_adrr = swap_backup[i].virtual_adrr;
+      curproc->swap_arr[i].pagedir = swap_backup[i].pagedir;
+
+      curproc->ram_arr[i].age_count = ram_backup[i].age_count;
+      curproc->ram_arr[i].occupied = ram_backup[i].occupied;
+      curproc->ram_arr[i].offset_in_swap_file = ram_backup[i].offset_in_swap_file;
+      curproc->ram_arr[i].virtual_adrr = ram_backup[i].virtual_adrr;
+      curproc->ram_arr[i].pagedir = ram_backup[i].pagedir;
     }
   }
+
   if (ip)
   {
     iunlockput(ip);
