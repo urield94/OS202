@@ -1,0 +1,58 @@
+[
+  {
+    "albumId": 1,
+    "id": 1,
+    "title": "amazing island view",
+    "url": "https://shield-j-test.s3.amazonaws.com/photo1.jfif",
+    "thumbnailUrl": "https://shield-j-test.s3.amazonaws.com/photo1.jfif"
+  },
+  {
+    "albumId": 1,
+    "id": 2,
+    "title": "Starry Blue Night blue sky night nature stars",
+    "url": "https://shield-j-test.s3.amazonaws.com/photo2.jpg",
+    "thumbnailUrl": "https://shield-j-test.s3.amazonaws.com/photo2.jpg"
+  },
+  {
+    "albumId": 2,
+    "id": 3,
+    "title": "A View From The Google NYC Deck",
+    "url": "https://shield-j-test.s3.amazonaws.com/photo3.jpg",
+    "thumbnailUrl": "https://shield-j-test.s3.amazonaws.com/photo3.jpg"
+  },
+  {
+    "albumId": 2,
+    "id": 4,
+    "title": "sea beside rock formation during golden hour photo",
+    "url": "https://shield-j-test.s3.amazonaws.com/photo4.jfif",
+    "thumbnailUrl": "https://shield-j-test.s3.amazonaws.com/photo4.jfif"
+  },
+  {
+    "albumId": 3,
+    "id": 5,
+    "title": "mount fuji",
+    "url": "https://shield-j-test.s3.amazonaws.com/photo5.jpg",
+    "thumbnailUrl": "https://shield-j-test.s3.amazonaws.com/photo5.jpg"
+  },
+  {
+    "albumId": 3,
+    "id": 6,
+    "title": "Chicago view",
+    "url": "https://shield-j-test.s3.amazonaws.com/photo6.jpg",
+    "thumbnailUrl": "https://shield-j-test.s3.amazonaws.com/photo6.jpg"
+  },
+  {
+    "albumId": 3,
+    "id": 7,
+    "title": "NYC",
+    "url": "https://shield-j-test.s3.amazonaws.com/photo7.jfif",
+    "thumbnailUrl": "https://shield-j-test.s3.amazonaws.com/photo7.jfif"
+  },
+  {
+    "albumId": 3,
+    "id": 8,
+    "title": "Panoramic view of London",
+    "url": "https://shield-j-test.s3.amazonaws.com/photo8.jpg",
+    "thumbnailUrl": "https://shield-j-test.s3.amazonaws.com/photo8.jpg"
+  }
+]
